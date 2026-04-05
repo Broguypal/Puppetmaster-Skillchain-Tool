@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFXI PUP Skillchain Explorer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;background:#0f0f1a;color:#e2e8f0;min-height:100vh;font-size:12px}
+.hdr{background:linear-gradient(135deg,#1a1a3e,#0f0f2a 50%,#1a0a2e);padding:14px 20px;border-bottom:1px solid #fff1}
+.hdr h1{font-size:18px;font-weight:800;background:linear-gradient(90deg,#fbbf24,#f97316,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr p{font-size:10px;color:#94a3b8;margin-top:2px}
+.pnl{padding:10px 20px;border-bottom:1px solid #fff1}
+.pnl.dk{background:#0a0a14}.pnl.md{background:#0d0d18}.pnl.lt{background:#12121f}
+.ph{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:2px 0}
+.ph h3{font-size:11px;font-weight:700;letter-spacing:1px}
+.ph .cnt{font-size:10px;color:#64748b;margin-left:auto}
+.pb{display:none;margin-top:8px}.pb.open{display:block}
+.lbl{font-size:9px;color:#64748b;font-weight:700;letter-spacing:1.5px;margin-bottom:3px}
+.rw{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.rw.sp{gap:10px;align-items:flex-end}
+.col{display:flex;flex-direction:column}
+.b{padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;border:1px solid #ffffff10;background:#1a1a2e;color:#94a3b8;transition:all .15s}
+.b:hover{border-color:#fff3}.b.on{background:#2563eb;color:#fff;border-color:#3b82f6}
+.b.sm{padding:2px 8px;font-size:10px}
+.ch{padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid;transition:all .15s;user-select:none;display:inline-flex;align-items:center;gap:4px}
+.ch:hover{filter:brightness(1.2)}
+.ch.mo{background:#1e3a5f;color:#93c5fd;border-color:#2563eb55}
+.ch.mf{background:#0d0d18;color:#475569;border-color:#fff1;text-decoration:line-through}
+.ch.ao{background:#5c1a1a;color:#fca5a5;border-color:#dc262655}
+.ch.af{background:#0d0d18;color:#475569;border-color:#fff1;text-decoration:line-through}
+.ch.lk{opacity:.4;pointer-events:none}
+.ch .s{font-size:9px;color:#64748b;font-weight:400}
+.ch.mf .s,.ch.af .s{color:#333}
+.inp{background:#1a1a2e;border:1px solid #fff2;border-radius:4px;color:#e2e8f0;padding:4px 8px;font-size:11px;width:110px;outline:none;font-family:inherit}
+.inp:focus{border-color:#2563eb}
+.sts{display:flex;gap:16px;font-size:11px;color:#64748b;flex-wrap:wrap;padding:6px 20px;background:#0a0a14;border-bottom:1px solid #fff1}
+.sts b{color:#e2e8f0}.sts .g{color:#4ade80}
+.res{padding:10px 20px}
+.cc{margin-bottom:6px;border-radius:6px;overflow:hidden;background:#12121f;border:1px solid #fff1}
+.cs{display:flex;align-items:center;gap:6px;padding:8px 12px;cursor:pointer;flex-wrap:wrap}.cs:hover{background:#fff1}
+.lvb{font-size:11px;font-weight:800;padding:2px 7px;border-radius:3px;min-width:26px;text-align:center;color:#fff}
+.lvb.l1{background:#4b5563}.lvb.l2{background:#2563eb}.lvb.l3{background:#dc2626}.lvb.l4{background:#d97706}
+.cf{display:flex;align-items:center;gap:2px;flex-wrap:wrap;flex:1}
+.wt{display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;white-space:nowrap}
+.wt.m{background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb44}
+.wt.a{background:#5c1a1a;color:#fca5a5;border:1px solid #dc262644}
+.sb{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap}
+.mb{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.cd{padding:10px 12px;border-top:1px solid #fff1;background:#0d0d18;font-size:12px;display:none}.cd.open{display:block}
+.sl{margin-top:4px;padding-left:8px;border-left:2px solid #fff1}
+.si{margin-bottom:3px;line-height:1.5}
+.more{display:block;margin:12px auto;padding:8px 20px;background:#1a1a3e;color:#93c5fd;border:1px solid #2563eb44;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit}
+.empty{text-align:center;padding:40px;color:#64748b}
+.leg{padding:14px 20px;border-top:1px solid #fff1;background:#0a0a14;font-size:10px;color:#64748b;line-height:1.8}
+.leg b{color:#94a3b8}
+.mn-el{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid #fff2;margin:1px;user-select:none}
+.mn-el:hover{filter:brightness(1.3)}
+.mn-slot{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;background:#1a1a2e;border:1px solid #fff1;min-width:90px}
+.mn-slot .x{cursor:pointer;color:#f87171;font-weight:700;margin-left:auto}
+.det{padding:8px 12px;border-radius:6px;margin-top:6px;border:1px solid;font-size:11px;line-height:1.5}
+.ibox{padding:6px 10px;border-radius:4px;background:#1e1e3a;border:1px solid #fff1;font-size:11px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="hdr">
+<h1>⚙ PUP SKILLCHAIN EXPLORER</h1>
+<p>FFXI Puppetmaster — Master H2H ↔ Automaton WS • Proper Inhibitor/maneuver mechanics</p>
+</div>
+<div id="app"></div>
+<div class="leg">
+<div style="font-weight:700;margin-bottom:4px;letter-spacing:1px;color:#94a3b8">MECHANICS REFERENCE</div>
+<b>Without Inhibitor:</b> Auto uses maneuver-determined WS every time (same WS). Can open or close. No SC intelligence.<br>
+<b>With Inhibitor:</b> When master TP≥~900, auto WAITS. After master WSes, auto <u>ignores maneuvers</u> and picks WS that forms the <u>highest-level SC</u>. Ties → highest priority WS. Master MUST open.<br>
+<b>Speedloader:</b> SC Bonus damage. Pairs with Inhibitor. Does not change WS selection.<br>
+<b>Maneuver rule:</b> Max 3 active (can repeat). Auto picks WS whose element has most stacks. Ties → highest priority WS wins. Elements not mapped to any frame WS are wasted.<br>
+<b>L4 (Radiance/Umbra):</b> Requires Godhands + Aeonic Aftermath.<br>
+<b>Weapon-gated WS:</b> Dragon Blow = Dragon Fangs. Maru Kala = Varga Purnikawa. Only one weapon at a time.
+</div>
+<script>
+/* ══════════ SC RULES ══════════ */
+const SC={
+"Compression→Transfixion":["Transfixion",1],"Compression→Detonation":["Detonation",1],
+"Transfixion→Compression":["Compression",1],"Transfixion→Reverberation":["Reverberation",1],
+"Scission→Liquefaction":["Scission",1],"Scission→Reverberation":["Scission",1],
+"Scission→Detonation":["Detonation",1],"Liquefaction→Scission":["Scission",1],
+"Induration→Compression":["Compression",1],"Induration→Impaction":["Impaction",1],
+"Impaction→Detonation":["Detonation",1],
+"Transfixion→Scission":["Distortion",2],"Liquefaction→Impaction":["Fusion",2],
+"Impaction→Liquefaction":["Fusion",2],"Detonation→Compression":["Gravitation",2],
+"Induration→Reverberation":["Fragmentation",2],"Reverberation→Induration":["Fragmentation",2],
+"Reverberation→Impaction":["Fusion",2],
+"Distortion→Fusion":["Fusion",2],"Gravitation→Fragmentation":["Fragmentation",2],
+"Fusion→Gravitation":["Gravitation",2],"Fragmentation→Distortion":["Distortion",2],
+"Distortion→Gravitation":["Darkness",3],"Gravitation→Distortion":["Darkness",3],
+"Fusion→Fragmentation":["Light",3],"Fragmentation→Fusion":["Light",3],
+"Light→Light":["Radiance",4],"Darkness→Darkness":["Umbra",4],
+"Light→Darkness":["Darkness",3],"Darkness→Light":["Light",3],
+};
+
+/* ══════════ WS DATA ══════════ */
+const MW={
+"Combo":{p:["Impaction"],s:"5",w:0},"Shoulder Tackle":{p:["Reverberation","Impaction"],s:"40",w:0},
+"One Inch Punch":{p:["Compression"],s:"75",w:0},"Backhand Blow":{p:["Detonation"],s:"100",w:0},
+"Raging Fists":{p:["Impaction"],s:"125",w:0},"Spinning Attack":{p:["Liquefaction","Impaction"],s:"150",w:0},
+"Howling Fist":{p:["Transfixion","Impaction"],s:"200",w:0},"Dragon Kick":{p:["Fragmentation"],s:"225",w:0},
+"Asuran Fists":{p:["Gravitation","Liquefaction"],s:"250",w:0},
+"Tornado Kick":{p:["Induration","Impaction","Detonation"],s:"300",w:0},
+"Shijin Spiral":{p:["Fusion","Reverberation"],s:"Merit",w:0},
+"Victory Smite":{p:["Light","Fragmentation"],s:"Empyrean",w:0},
+"Stringing Pummel":{p:["Gravitation","Liquefaction"],s:"Mythic",w:0},
+"Maru Kala":{p:["Detonation","Compression","Distortion"],s:"Prime",w:1},
+"Dragon Blow":{p:["Distortion"],s:"Dragon Fangs",w:2},
+};
+const WGATES=["standard","varga","dragonfangs"];
+
+const AW={
+Valoredge:{
+"Chimera Ripper":{p:["Detonation","Induration"],m:"Fire",pr:1},
+"String Clipper":{p:["Scission"],m:"Thunder",pr:2},
+"Cannibal Blade":{p:["Compression","Reverberation"],m:"Dark",pr:3},
+"Bone Crusher":{p:["Fragmentation"],m:"Light",pr:4},
+"String Shredder":{p:["Distortion","Scission"],m:"Thunder",pr:5},
+},
+Sharpshot:{
+"Arcuballista":{p:["Liquefaction","Transfixion"],m:"Fire",pr:1},
+"Daze":{p:["Impaction","Transfixion"],m:"Thunder",pr:2},
+"Armor Piercer":{p:["Gravitation"],m:"Dark",pr:3},
+"Armor Shatterer":{p:["Fusion","Impaction"],m:"Wind",pr:4},
+},
+"Harlequin/Stormwaker":{
+"Slapstick":{p:["Reverberation","Impaction"],m:"Thunder",pr:1},
+"Knockout":{p:["Scission","Detonation"],m:"Wind",pr:2},
+"Magic Mortar":{p:["Fusion","Liquefaction"],m:"Light",pr:3},
+},
+};
+
+const ELS=["Fire","Ice","Wind","Earth","Thunder","Water","Light","Dark"];
+const EC={Fire:"#ef4444",Ice:"#7dd3fc",Wind:"#86efac",Earth:"#d4a574",Thunder:"#a78bfa",Water:"#60a5fa",Light:"#fbbf24",Dark:"#a855f7"};
+const SCC={Transfixion:"#fde68a",Compression:"#c084fc",Liquefaction:"#f87171",Scission:"#d4a574",Impaction:"#60a5fa",Detonation:"#86efac",Induration:"#bae6fd",Reverberation:"#7dd3fc",Distortion:"#3b82f6",Fragmentation:"#4ade80",Fusion:"#ef4444",Gravitation:"#a855f7",Light:"#fbbf24",Darkness:"#7c3aed",Radiance:"#fef08a",Umbra:"#581c87"};
+const DSC=new Set(["Darkness","Umbra","Compression","Gravitation","Distortion"]);
+const WPNS=[{id:"standard",l:"Any H2H",d:"All base WS"},{id:"godhands",l:"Godhands",d:"Aeonic — L4 chains"},{id:"varga",l:"Varga Purnikawa",d:"Prime — Maru Kala"},{id:"dragonfangs",l:"Dragon Fangs",d:"Dragon Blow"}];
+
+/* ══════════ STATE ══════════ */
+let S={frame:"Valoredge",steps:4,start:"Both",minLv:1,sort:"maxLv",search:"",showN:100,
+  weapon:"standard",maneuvers:[null,null,null],inhibitor:false,
+  mExcl:{},aExcl:{},po:{mn:true,mws:false,aws:false}};
+for(const n of Object.keys(MW)) S.mExcl[n]=(MW[n].w!==0);
+for(const f of Object.keys(AW)){S.aExcl[f]={};for(const n of Object.keys(AW[f]))S.aExcl[f][n]=false;}
+let cache=null;
+
+/* ══════════ HELPERS ══════════ */
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function getMWS(){const r={};for(const[n,i]of Object.entries(MW)){if(S.mExcl[n])continue;if(i.w&&WGATES[i.w]!==S.weapon)continue;r[n]=i;}return r;}
+function getAWS(){const r={};for(const[n,i]of Object.entries(AW[S.frame])){if(S.aExcl[S.frame][n])continue;r[n]=i;}return r;}
+function cntMN(){const c={};for(const m of S.maneuvers)if(m)c[m]=(c[m]||0)+1;return c;}
+function hasMN(){return S.maneuvers.some(m=>m)}
+
+function detAutoWS(frame,mnc){
+  const fw=AW[frame],entries=Object.entries(fw);
+  if(!entries.length)return null;
+  const mx=Math.max(0,...Object.values(mnc));
+  let cands;
+  if(mx===0){cands=entries;}
+  else{const we=new Set(Object.keys(mnc).filter(e=>mnc[e]===mx));cands=entries.filter(([,w])=>we.has(w.m));if(!cands.length)cands=entries;}
+  cands.sort((a,b)=>b[1].pr-a[1].pr);
+  return cands[0][0];
+}
+
+/* Standard SC check (respects property priority) */
+function trySC(op,cp){for(const o of op)for(const c of cp){const r=SC[o+"→"+c];if(r)return r;}return null;}
+
+/* Inhibitor SC check: finds highest-level SC across ALL property combos */
+function bestSC(op,cp,noL4){
+  let best=null;
+  for(const o of op)for(const c of cp){
+    const r=SC[o+"→"+c];
+    if(!r)continue;
+    if(r[1]===4&&noL4)continue;
+    if(!best||r[1]>best[1])best=r;
+  }
+  return best;
+}
+
+/* Find what the Inhibitor will pick: highest SC level, then highest priority WS */
+function inhibPick(res,fw,names,noL4){
+  let best=null;
+  for(const n of names){
+    const sc=bestSC(res,fw[n].p,noL4);
+    if(!sc)continue;
+    if(!best||sc[1]>best.lv||(sc[1]===best.lv&&fw[n].pr>fw[best.ws].pr)){
+      best={ws:n,sc:sc[0],lv:sc[1]};
+    }
+  }
+  return best;
+}
+
+/* ══════════ MANEUVER FEASIBILITY ══════════ */
+function assessMN(autoUsed,frame){
+  const fw=AW[frame],unique=[...new Set(autoUsed)];
+  if(!unique.length)return{ok:true,label:"N/A",detail:"",tier:0};
+  if(S.inhibitor){
+    // With Inhibitor, auto ignores maneuvers for WS selection
+    return{ok:true,label:"Inhibitor (dynamic)",detail:"Inhibitor overrides maneuvers — auto picks WS for highest-level SC.",tier:0};
+  }
+  const maxPr=Math.max(...Object.values(fw).map(w=>w.pr));
+  if(unique.length===1){
+    const ws=unique[0],info=fw[ws];
+    if(info.pr===maxPr)return{ok:true,label:"Default",detail:ws+" is highest priority — auto uses it by default.",tier:0};
+    const sameHi=Object.entries(fw).filter(([n,w])=>w.m===info.m&&w.pr>info.pr);
+    if(sameHi.length>0)return{ok:false,label:"Blocked",detail:ws+" shares "+info.m+" with higher-priority "+sameHi.map(([n])=>n).join(", ")+". Cannot force via maneuvers.",tier:2};
+    return{ok:true,label:info.m+" maneuver",detail:"Force with "+info.m+" dominant (need more "+info.m+" stacks than any other WS element).",tier:0};
+  }
+  // Multiple auto WS without Inhibitor — shouldn't happen in maneuver-locked mode, but for "show all":
+  return{ok:false,label:"Multi-WS",detail:"Multiple auto WS needed ("+unique.join(", ")+"). Only possible with Inhibitor.",tier:1};
+}
+
+/* ══════════ CHAIN ENGINE ══════════ */
+function compute(){
+  const fw=getAWS(),mws=getMWS();
+  const an=Object.keys(fw),mn=Object.keys(mws);
+  if(!an.length||!mn.length)return[];
+  const len=S.steps,noL4=(S.weapon!=="godhands");
+  const hmn=hasMN(),mnc=cntMN(),det=hmn?detAutoWS(S.frame,mnc):null;
+  const inhib=S.inhibitor;
+  const res=[];
+
+  // Build initial states
+  const init=[];
+  // Master can always open
+  if(S.start==="Master"||S.start==="Both")
+    for(const m of mn) init.push({ch:[{ws:m,src:"M",sc:null,lv:null}],rs:mws[m].p,nx:"A"});
+
+  // Auto opening: only without Inhibitor
+  if(!inhib&&(S.start==="Auto"||S.start==="Both")){
+    if(hmn){
+      // Maneuvers set: auto can only open with determined WS
+      if(det&&fw[det]) init.push({ch:[{ws:det,src:"A",sc:null,lv:null}],rs:fw[det].p,nx:"M"});
+    } else {
+      // No maneuvers: auto opens with highest priority (default)
+      const maxPr=Math.max(...an.map(n=>fw[n].pr));
+      const defWS=an.find(n=>fw[n].pr===maxPr);
+      if(defWS) init.push({ch:[{ws:defWS,src:"A",sc:null,lv:null}],rs:fw[defWS].p,nx:"M"});
+    }
+  }
+
+  let q=init;
+  while(q.length){
+    const nq=[];
+    for(const s of q){
+      if(s.ch.length>=len)continue;
+      let cands=[];
+      if(s.nx==="M"){
+        cands=mn.map(n=>[n,mws[n].p,"M",null,null]);
+      } else {
+        // Auto's turn
+        if(inhib){
+          // Inhibitor: auto picks best SC dynamically
+          const pick=inhibPick(s.rs,fw,an,noL4);
+          if(pick) cands=[[pick.ws,fw[pick.ws].p,"A",pick.sc,pick.lv]];
+        } else if(hmn&&det&&fw[det]){
+          // No Inhibitor + maneuvers: always the determined WS
+          cands=[[det,fw[det].p,"A",null,null]];
+        } else if(!hmn){
+          // No maneuvers, no Inhibitor: auto always uses highest priority
+          const maxPr=Math.max(...an.map(n=>fw[n].pr));
+          const defWS=an.find(n=>fw[n].pr===maxPr);
+          if(defWS) cands=[[defWS,fw[defWS].p,"A",null,null]];
+        }
+      }
+      for(const[name,props,src,forceSC,forceLV] of cands){
+        let scN,scL;
+        if(forceSC){scN=forceSC;scL=forceLV;}
+        else{const sc=trySC(s.rs,props);if(!sc)continue;[scN,scL]=sc;}
+        if(scL===4&&noL4)continue;
+        const nc=[...s.ch,{ws:name,src,sc:scN,lv:scL}];
+        if(nc.length===len){
+          const au=nc.filter(x=>x.src==="A").map(x=>x.ws);
+          const mx=Math.max(...nc.filter(x=>x.lv).map(x=>x.lv));
+          res.push({steps:nc,maxLv:mx,autoUsed:[...new Set(au)],mn:assessMN(au,S.frame)});
+        } else {
+          nq.push({ch:nc,rs:[scN],nx:src==="M"?"A":"M"});
+        }
+      }
+    }
+    q=nq;
+  }
+  return res;
+}
+
+/* ══════════ RENDER HELPERS ══════════ */
+function scB(n,l){const bg=SCC[n]||"#888",dk=DSC.has(n);return'<span class="sb" style="background:'+bg+';color:'+(dk?"#fff":"#1a1a2e")+';border:1px solid '+(dk?"#fff3":"#0002")+'">L'+l+' '+esc(n)+'</span>';}
+function wsT(n,s){return'<span class="wt '+(s==="M"?"m":"a")+'">'+(s==="M"?"🥊":"🤖")+' '+esc(n)+'</span>';}
+
+/* ══════════ MAIN RENDER ══════════ */
+function render(){
+  if(!cache)cache=compute();
+  const mnc=cntMN(),hmn=hasMN();
+  const det=hmn?detAutoWS(S.frame,mnc):null;
+  const fw=AW[S.frame];
+  let h='';
+
+  // ── WEAPON (always visible) ──
+  h+='<div class="pnl md" style="padding:12px 20px"><div class="lbl">🗡️ EQUIPPED WEAPON</div><div class="rw" style="gap:6px">';
+  for(const w of WPNS){const sel=S.weapon===w.id;h+='<div class="ch '+(sel?'mo':'mf')+'" style="'+(sel?'box-shadow:0 0 0 2px #fbbf24':'')+';" onclick="setW(\''+w.id+'\')">'+esc(w.l)+' <span class="s">'+esc(w.d)+'</span></div>';}
+  h+='</div></div>';
+
+  // ── INHIBITOR ──
+  h+='<div class="pnl dk" style="padding:10px 20px"><div class="rw" style="gap:12px">';
+  h+='<div class="ch '+(S.inhibitor?'ao':'af')+'" style="font-size:13px;'+(S.inhibitor?'box-shadow:0 0 0 2px #ef4444':'')+'" onclick="togInhib()">🔧 Inhibitor '+(S.inhibitor?'ON':'OFF')+'</div>';
+  h+='<span style="font-size:10px;color:#94a3b8">'+
+    (S.inhibitor
+      ? 'Auto WAITS for master → picks highest-level SC WS → ignores maneuvers. Master must open.'
+      : 'Auto uses maneuver-determined WS. No SC intelligence. Can open or close.')
+    +'</span>';
+  h+='</div></div>';
+
+  // ── MANEUVERS ──
+  h+='<div class="pnl dk">';
+  h+='<div class="ph" onclick="tog(\'mn\')"><span style="font-size:10px;color:#64748b">'+(S.po.mn?'▼':'▶')+'</span><h3 style="color:#a78bfa">🎛️ MANEUVER SETUP</h3></div>';
+  h+='<div class="pb'+(S.po.mn?' open':'')+'"><div class="lbl">ACTIVE MANEUVERS (click to fill, ✕ to clear)</div>';
+  h+='<div class="rw" style="gap:8px;margin-bottom:6px">';
+  for(let i=0;i<3;i++){const m=S.maneuvers[i];h+=m?'<div class="mn-slot"><span style="color:'+EC[m]+';font-weight:700">'+m+'</span><span class="x" onclick="clrMN('+i+')">✕</span></div>':'<div class="mn-slot" style="color:#475569">Slot '+(i+1)+'</div>';}
+  h+='<button class="b sm" onclick="clrAllMN()">Clear</button></div>';
+  h+='<div class="rw" style="gap:3px">';
+  for(const el of ELS) h+='<div class="mn-el" style="background:'+EC[el]+'22;color:'+EC[el]+';border-color:'+EC[el]+'55" onclick="addMN(\''+el+'\')">'+el+'</div>';
+  h+='</div>';
+
+  // Determined WS display
+  if(!S.inhibitor){
+    const wsName=det||(()=>{const e=Object.entries(fw);e.sort((a,b)=>b[1].pr-a[1].pr);return e[0]?e[0][0]:null;})();
+    if(wsName&&fw[wsName]){
+      const di=fw[wsName];
+      // Explain why this WS was chosen
+      let explanation='';
+      if(!hmn){
+        explanation='No maneuvers active → default to highest priority WS (P'+di.pr+').';
+      } else {
+        const counts=mnc;
+        const mx=Math.max(...Object.values(counts));
+        const winEls=Object.keys(counts).filter(e=>counts[e]===mx);
+        const frameEls=new Set(Object.values(fw).map(w=>w.m));
+        const wastedEls=winEls.filter(e=>!frameEls.has(e));
+        const activeEls=winEls.filter(e=>frameEls.has(e));
+        if(activeEls.length===0){
+          explanation='Dominant element(s) ['+winEls.join(',')+'] have no WS on this frame → default to highest priority.';
+        } else if(activeEls.length===1){
+          explanation=activeEls[0]+' dominant ('+counts[activeEls[0]]+' stack'+(counts[activeEls[0]]>1?'s':'')+') → '+wsName+'.';
+        } else {
+          explanation='Tie between '+activeEls.join(', ')+' → highest priority wins → '+wsName+' (P'+di.pr+').';
+        }
+        if(wastedEls.length) explanation+=' ⚠ '+wastedEls.join(',')+' wasted (no WS uses this element on '+S.frame+').';
+      }
+      h+='<div class="det" style="border-color:'+EC[di.m]+'55;background:'+EC[di.m]+'11">';
+      h+='<span style="color:'+EC[di.m]+';font-weight:700">Without Inhibitor, auto will always use: 🤖 '+esc(wsName)+'</span>';
+      h+=' <span style="color:#94a3b8">('+di.p.join('/')+' • '+di.m+' • P'+di.pr+')</span>';
+      h+='<br><span style="color:#64748b;font-size:10px">'+esc(explanation)+'</span></div>';
+    }
+  } else {
+    h+='<div class="ibox" style="color:#fca5a5">With Inhibitor: maneuvers are <b>ignored</b> for WS selection. Auto dynamically picks the WS that forms the highest-level SC after master WSes.'+(hmn?' Your maneuvers still affect other attachment effects (Store TP, Attuner, etc).':'')+'</div>';
+  }
+  h+='</div></div>';
+
+  // ── MASTER WS ──
+  h+='<div class="pnl md">';
+  const mOn=Object.keys(MW).filter(n=>!S.mExcl[n]&&(!MW[n].w||WGATES[MW[n].w]===S.weapon)).length;
+  h+='<div class="ph" onclick="tog(\'mws\')"><span style="font-size:10px;color:#64748b">'+(S.po.mws?'▼':'▶')+'</span><h3 style="color:#93c5fd">🥊 MASTER WS FILTER</h3><span class="cnt">'+mOn+' enabled</span></div>';
+  h+='<div class="pb'+(S.po.mws?' open':'')+'"><div class="rw">';
+  for(const[n,i]of Object.entries(MW)){
+    const gated=i.w&&WGATES[i.w]!==S.weapon;const excl=S.mExcl[n];const on=!excl&&!gated;
+    let cls=on?'mo':'mf';if(gated)cls+=' lk';
+    let ex='';if(i.w===1)ex=' <span style="color:#fbbf24;font-size:9px">⚠Varga</span>';if(i.w===2)ex=' <span style="color:#fbbf24;font-size:9px">⚠DragonFangs</span>';
+    h+='<div class="ch '+cls+'" onclick="'+(gated?'':'togMW(\''+esc(n)+'\')')+'">🥊 '+esc(n)+' <span class="s">'+esc(i.p.join('/'))+' ['+i.s+']</span>'+ex+(gated?' <span class="s" style="color:#f87171">[wrong wpn]</span>':'')+'</div>';
+  }
+  h+='</div><div class="rw" style="margin-top:6px;gap:4px"><button class="b sm" onclick="allMW(0)">Enable all</button><button class="b sm" onclick="allMW(1)">Disable all</button></div></div></div>';
+
+  // ── AUTO WS ──
+  h+='<div class="pnl md">';
+  const aOn=Object.keys(fw).filter(n=>!S.aExcl[S.frame][n]).length;
+  h+='<div class="ph" onclick="tog(\'aws\')"><span style="font-size:10px;color:#64748b">'+(S.po.aws?'▼':'▶')+'</span><h3 style="color:#fca5a5">🤖 AUTO WS — '+S.frame.toUpperCase()+'</h3><span class="cnt">'+aOn+'/'+Object.keys(fw).length+'</span></div>';
+  h+='<div class="pb'+(S.po.aws?' open':'')+'"><div class="rw">';
+  for(const[n,i]of Object.entries(fw)){
+    const excl=S.aExcl[S.frame][n];const cls=excl?'af':'ao';const isDet=(n===det&&!S.inhibitor);
+    h+='<div class="ch '+cls+'" onclick="togAW(\''+esc(n)+'\')" style="'+(isDet?'box-shadow:0 0 0 2px '+EC[i.m]+';':'')+'">🤖 '+esc(n)+' <span class="s">'+esc(i.p.join('/'))+' ['+i.m+' P'+i.pr+']</span>';
+    if(isDet)h+=' <span style="font-size:9px;color:#fbbf24">★</span>';
+    h+='</div>';
+  }
+  h+='</div><div class="rw" style="margin-top:6px;gap:4px"><button class="b sm" onclick="allAW(0)">Enable all</button><button class="b sm" onclick="allAW(1)">Disable all</button></div></div></div>';
+
+  // ── CONTROLS ──
+  h+='<div class="pnl dk"><div class="rw sp">';
+  function cg(l,b){return'<div class="col"><div class="lbl">'+l.toUpperCase()+'</div><div class="rw" style="gap:3px">'+b+'</div></div>';}
+  function bt(f,v,d){return'<button class="b'+(S[f]===v?' on':'')+'" onclick="setS(\''+f+'\','+(typeof v==='string'?"'"+v+"'":v)+')">'+esc(d||String(v))+'</button>';}
+  h+=cg("Frame",["Valoredge","Sharpshot","Harlequin/Stormwaker"].map(f=>bt("frame",f,f==="Harlequin/Stormwaker"?"Harl/Storm":f)).join(""));
+  h+=cg("Steps",[2,3,4,5,6].map(n=>bt("steps",n,n+"-step")).join(""));
+  // Opener: with Inhibitor, force Master
+  if(S.inhibitor){
+    h+=cg("Opener",'<button class="b on">🥊 Master (forced by Inhibitor)</button>');
+  } else {
+    h+=cg("Opener",["Both","Master","Auto"].map(s=>bt("start",s,s==="Master"?"🥊 Master":s==="Auto"?"🤖 Auto":"Both")).join(""));
+  }
+  h+=cg("Min SC",[1,2,3].map(n=>bt("minLv",n,"L"+n+"+")).join("")+(S.weapon==="godhands"?bt("minLv",4,"L4+"):""));
+  h+=cg("Sort",[["maxLv","SC Level"],["feasible","Feasibility"]].map(([k,l])=>'<button class="b'+(S.sort===k?' on':'')+'" onclick="setS(\'sort\',\''+k+'\')">'+l+'</button>').join(""));
+  h+=cg("Search",'<input class="inp" value="'+esc(S.search)+'" placeholder="WS name..." oninput="setS(\'search\',this.value)">');
+  h+='</div></div>';
+
+  // ── FILTER & DISPLAY ──
+  let f=cache.slice();
+  if(S.minLv>1)f=f.filter(c=>c.maxLv>=S.minLv);
+  if(S.search){const t=S.search.toLowerCase();f=f.filter(c=>c.steps.some(x=>x.ws.toLowerCase().includes(t)));}
+  if(S.sort==="maxLv")f.sort((a,b)=>b.maxLv-a.maxLv||(a.mn.tier-b.mn.tier));
+  else f.sort((a,b)=>a.mn.tier-b.mn.tier||b.maxLv-a.maxLv);
+  const feasC=cache.filter(c=>c.mn.ok&&c.maxLv>=S.minLv).length;
+
+  h+='<div class="sts"><span>Total '+S.steps+'-step: <b>'+cache.length+'</b></span>';
+  h+='<span>Filtered: <b>'+f.length+'</b></span>';
+  h+='<span>Feasible: <b class="g">'+feasC+'</b></span></div>';
+
+  h+='<div class="res">';
+  const shown=f.slice(0,S.showN);
+  if(!shown.length)h+='<div class="empty">No chains found. Try adjusting filters.</div>';
+  for(let i=0;i<shown.length;i++){
+    const c=shown[i],lc=c.maxLv>=4?"l4":c.maxLv>=3?"l3":c.maxLv>=2?"l2":"l1";
+    const tc=["#4ade80","#fbbf24","#f87171"][c.mn.tier]||"#888";
+    let fl='';for(let j=0;j<c.steps.length;j++){const s=c.steps[j];if(j)fl+='<span style="color:#475569;font-size:11px">→</span>';fl+=wsT(s.ws,s.src);if(s.sc)fl+='<span style="color:#475569;font-size:9px">⇒</span>'+scB(s.sc,s.lv);}
+    let dt='<div style="margin-bottom:6px"><b style="color:#64748b">Setup: </b><span style="color:'+tc+'">'+esc(c.mn.detail)+'</span></div>';
+    if(c.maxLv>=4)dt+='<div style="margin-bottom:6px;color:#d97706;font-weight:700">⚠ L4 requires Godhands + Aeonic Aftermath on closing WS</div>';
+    dt+='<div style="margin-bottom:6px"><b style="color:#64748b">Steps:</b><div class="sl">';
+    for(let j=0;j<c.steps.length;j++){const s=c.steps[j],isM=s.src==="M",wd=isM?MW[s.ws]:fw[s.ws];
+      const inf=isM?'Props: '+wd.p.join('/')+' | '+wd.s+(wd.w?' | Weapon-gated':''):'Props: '+wd.p.join('/')+' | '+wd.m+' | P'+wd.pr;
+      dt+='<div class="si"><span style="color:#64748b">'+( j+1)+': </span><span style="color:'+(isM?'#93c5fd':'#fca5a5')+';font-weight:600">'+(isM?'[M]':'[A]')+' '+esc(s.ws)+'</span> <span style="color:#475569;font-size:11px">'+esc(inf)+'</span>';
+      if(s.sc)dt+=' '+scB(s.sc,s.lv);dt+='</div>';}
+    dt+='</div></div>';
+    h+='<div class="cc"><div class="cs" onclick="togD('+i+')"><span class="lvb '+lc+'">L'+c.maxLv+'</span><div class="cf">'+fl+'</div><span class="mb" style="background:'+tc+'22;color:'+tc+';border:1px solid '+tc+'44">'+esc(c.mn.label)+'</span><span style="font-size:12px;color:#475569" id="a'+i+'">▼</span></div><div class="cd" id="d'+i+'">'+dt+'</div></div>';
+  }
+  if(f.length>S.showN)h+='<button class="more" onclick="setS(\'showN\','+(S.showN+100)+')">Show more ('+(f.length-S.showN)+' remaining)</button>';
+  h+='</div>';
+
+  document.getElementById("app").innerHTML=h;
+}
+
+/* ══════════ ACTIONS ══════════ */
+function tog(p){S.po[p]=!S.po[p];render();}
+function togD(i){const e=document.getElementById("d"+i),a=document.getElementById("a"+i);e.classList.toggle("open");a.textContent=e.classList.contains("open")?"▲":"▼";}
+function setS(k,v){S[k]=v;if(["frame","steps","start","minLv","inhibitor"].includes(k)){cache=null;S.showN=100;}render();}
+function setW(w){S.weapon=w;for(const[n,i]of Object.entries(MW))if(i.w)S.mExcl[n]=(WGATES[i.w]!==w);cache=null;S.showN=100;render();}
+function togInhib(){S.inhibitor=!S.inhibitor;if(S.inhibitor)S.start="Master";cache=null;S.showN=100;render();}
+function addMN(el){for(let i=0;i<3;i++){if(!S.maneuvers[i]){S.maneuvers[i]=el;break;}}cache=null;S.showN=100;render();}
+function clrMN(i){S.maneuvers[i]=null;S.maneuvers=S.maneuvers.filter(m=>m!==null);while(S.maneuvers.length<3)S.maneuvers.push(null);cache=null;S.showN=100;render();}
+function clrAllMN(){S.maneuvers=[null,null,null];cache=null;S.showN=100;render();}
+function togMW(n){S.mExcl[n]=!S.mExcl[n];cache=null;S.showN=100;render();}
+function togAW(n){S.aExcl[S.frame][n]=!S.aExcl[S.frame][n];cache=null;S.showN=100;render();}
+function allMW(excl){for(const n of Object.keys(MW)){if(!MW[n].w||WGATES[MW[n].w]===S.weapon)S.mExcl[n]=!!excl;}cache=null;S.showN=100;render();}
+function allAW(excl){for(const n of Object.keys(AW[S.frame]))S.aExcl[S.frame][n]=!!excl;cache=null;S.showN=100;render();}
+
+render();
+</script>
+</body>
+</html>
