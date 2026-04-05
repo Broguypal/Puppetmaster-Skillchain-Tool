@@ -231,37 +231,16 @@ function compute(){
   if(S.start==="Master"||S.start==="Both")
     for(const m of mn) init.push({ch:[{ws:m,src:"M",sc:null,lv:null}],rs:mws[m].p,nx:"A"});
 
-  // Auto opening
-  if(S.start==="Auto"||S.start==="Both"){
-    if(hmn && !inhib){
-      // Maneuvers still control opening if NO inhibitor
-      if(det && fw[det]) {
-        init.push({ch:[{ws:det,src:"A",sc:null,lv:null}],rs:fw[det].p,nx:"M"});
-      }
+  // Auto opening: only without Inhibitor
+  if(!inhib&&(S.start==="Auto"||S.start==="Both")){
+    if(hmn){
+      // Maneuvers set: auto can only open with determined WS
+      if(det&&fw[det]) init.push({ch:[{ws:det,src:"A",sc:null,lv:null}],rs:fw[det].p,nx:"M"});
     } else {
-      // Inhibitor OR no maneuvers → pick best opener
-      let bestWS = null;
-      let bestScore = -1;
-    
-      for (const n of an) {
-        let score = 0;
-    
-        // Evaluate how strong this opener is against all master WS
-        for (const m of mn) {
-          const sc = bestSC(fw[n].p, mws[m].p, noL4);
-          if (sc) score = Math.max(score, sc[1]);
-        }
-    
-        // Tie-breaker: priority
-        if (score > bestScore || (score === bestScore && fw[n].pr > fw[bestWS]?.pr)) {
-          bestWS = n;
-          bestScore = score;
-        }
-      }
-    
-      if (bestWS) {
-        init.push({ch:[{ws:bestWS,src:"A",sc:null,lv:null}],rs:fw[bestWS].p,nx:"M"});
-      }
+      // No maneuvers: auto opens with highest priority (default)
+      const maxPr=Math.max(...an.map(n=>fw[n].pr));
+      const defWS=an.find(n=>fw[n].pr===maxPr);
+      if(defWS) init.push({ch:[{ws:defWS,src:"A",sc:null,lv:null}],rs:fw[defWS].p,nx:"M"});
     }
   }
 
@@ -415,9 +394,9 @@ function render(){
   h+=cg("Frame",["Valoredge","Sharpshot","Harlequin/Stormwaker"].map(f=>bt("frame",f,f==="Harlequin/Stormwaker"?"Harl/Storm":f)).join(""));
   h+=cg("Steps",[2,3,4,5,6].map(n=>bt("steps",n,n+"-step")).join(""));
   // Opener: with Inhibitor, force Master
-  h+=cg("Opener",["Both","Master","Auto"].map(s=>bt("start",s,
-    s==="Master"?"🥊 Master":s==="Auto"?"🤖 Auto":"Both"
-  )).join("")); else {
+  if(S.inhibitor){
+    h+=cg("Opener",'<button class="b on">🥊 Master (forced by Inhibitor)</button>');
+  } else {
     h+=cg("Opener",["Both","Master","Auto"].map(s=>bt("start",s,s==="Master"?"🥊 Master":s==="Auto"?"🤖 Auto":"Both")).join(""));
   }
   h+=cg("Min SC",[1,2,3].map(n=>bt("minLv",n,"L"+n+"+")).join("")+(S.weapon==="godhands"?bt("minLv",4,"L4+"):""));
@@ -465,7 +444,7 @@ function tog(p){S.po[p]=!S.po[p];render();}
 function togD(i){const e=document.getElementById("d"+i),a=document.getElementById("a"+i);e.classList.toggle("open");a.textContent=e.classList.contains("open")?"▲":"▼";}
 function setS(k,v){S[k]=v;if(["frame","steps","start","minLv","inhibitor"].includes(k)){cache=null;S.showN=100;}render();}
 function setW(w){S.weapon=w;for(const[n,i]of Object.entries(MW))if(i.w)S.mExcl[n]=(WGATES[i.w]!==w);cache=null;S.showN=100;render();}
-function togInhib(){S.inhibitor=!S.inhibitor;cache=null;S.showN=100;render();}
+function togInhib(){S.inhibitor=!S.inhibitor;if(S.inhibitor)S.start="Master";cache=null;S.showN=100;render();}
 function addMN(el){for(let i=0;i<3;i++){if(!S.maneuvers[i]){S.maneuvers[i]=el;break;}}cache=null;S.showN=100;render();}
 function clrMN(i){S.maneuvers[i]=null;S.maneuvers=S.maneuvers.filter(m=>m!==null);while(S.maneuvers.length<3)S.maneuvers.push(null);cache=null;S.showN=100;render();}
 function clrAllMN(){S.maneuvers=[null,null,null];cache=null;S.showN=100;render();}
