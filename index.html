@@ -70,9 +70,10 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 <div id="app"></div>
 <div class="leg">
 <div style="font-weight:700;margin-bottom:4px;letter-spacing:1px;color:#94a3b8">MECHANICS REFERENCE</div>
-<b>Without Inhibitor:</b> Auto uses maneuver-determined WS every time (same WS). Can open or close. No SC intelligence.<br>
-<b>With Inhibitor:</b> When master TP≥~900, auto waits for master to WS first. Auto then <u>ignores maneuvers</u> and picks WS for <u>highest-level SC</u>. For opening (no prior WS), auto uses maneuver-determined WS normally.<br>
-<b>Speedloader:</b> SC Bonus damage. Pairs with Inhibitor. Does not change WS selection.<br>
+<b>Without Inhibitor or Speedloader:</b> Auto uses maneuver-determined WS every time (same WS). Can open or close. No SC intelligence.<br>
+<b>With Inhibitor (no Speedloader):</b> When master TP≥~900, auto waits for master to WS first. Auto picks WS for <u>highest-level SC</u>. Tie-break: highest WS priority wins (maneuvers ignored for tie-breaking). Opening WS: maneuver-determined, same as no-attachment behavior.<br>
+<b>With Speedloader (no Inhibitor):</b> When master TP≥~900, auto waits for master to WS first. Auto picks WS for <u>highest-level SC</u>. Tie-break: maneuver dominance wins (most stacks of that element, then highest priority). Opening WS: maneuver-determined.<br>
+<b>Inhibitor + Speedloader (both):</b> Waits for master. SC awareness ON. Tie-break: maneuver dominance (Speedloader's tie-breaking takes priority over Inhibitor's). Opening WS: maneuver-determined.<br>
 <b>Maneuver rule:</b> Max 3 active (can repeat). Auto picks WS whose element has most stacks. Ties → highest priority WS wins. Elements not mapped to any frame WS are wasted.<br>
 <b>L4 (Radiance/Umbra):</b> Requires Godhands + Aeonic Aftermath.<br>
 <b>Weapon-gated WS:</b> Dragon Blow = Dragon Fangs. Maru Kala = Varga Purnikawa. Only one weapon at a time.
@@ -143,7 +144,7 @@ const WPNS=[{id:"standard",l:"Any H2H",d:"All base WS"},{id:"godhands",l:"Godhan
 
 /* ══════════ STATE ══════════ */
 let S={frame:"Valoredge",steps:4,start:"Both",minLv:1,sort:"maxLv",search:"",showN:100,
-  weapon:"standard",maneuvers:[null,null,null],inhibitor:true,
+  weapon:"standard",maneuvers:[null,null,null],inhibitor:true,speedloader:true,
   mExcl:{},aExcl:{},po:{mn:true,mws:false,aws:false}};
 for(const n of Object.keys(MW)) S.mExcl[n]=(MW[n].w!==0);
 for(const f of Object.keys(AW)){S.aExcl[f]={};for(const n of Object.keys(AW[f]))S.aExcl[f][n]=false;}
@@ -182,26 +183,57 @@ function bestSC(op,cp,noL4){
   return best;
 }
 
-/* Find what the Inhibitor will pick: highest SC level, then highest priority WS */
-function inhibPick(res,fw,names,noL4){
-  let best=null;
+/* Find what Inhibitor/Speedloader will pick: highest SC level, then tie-break based on attachment combo.
+   Speedloader (with or without Inhibitor): tie-break by maneuver dominance (detAutoWS logic).
+   Inhibitor only (no Speedloader): tie-break by WS priority (highest pr wins). */
+function inhibPick(res,fw,names,noL4,mnc,frame){
+  // Gather all candidates that produce a SC, and their best SC level
+  const scored=[];
   for(const n of names){
     const sc=bestSC(res,fw[n].p,noL4);
     if(!sc)continue;
-    if(!best||sc[1]>best.lv||(sc[1]===best.lv&&fw[n].pr>fw[best.ws].pr)){
-      best={ws:n,sc:sc[0],lv:sc[1]};
-    }
+    scored.push({ws:n,sc:sc[0],lv:sc[1]});
   }
-  return best;
+  if(!scored.length)return null;
+  const maxLv=Math.max(...scored.map(x=>x.lv));
+  const tied=scored.filter(x=>x.lv===maxLv);
+  if(tied.length===1)return tied[0];
+  // Tie-break
+  if(S.speedloader){
+    // Speedloader: maneuver dominance tie-break (detAutoWS logic applied to tied candidates)
+    const mx=Math.max(0,...Object.values(mnc));
+    let cands;
+    if(mx===0){
+      cands=tied.map(x=>x.ws);
+    } else {
+      const we=new Set(Object.keys(mnc).filter(e=>mnc[e]===mx));
+      const mnFiltered=tied.filter(x=>we.has(fw[x.ws].m)).map(x=>x.ws);
+      cands=mnFiltered.length?mnFiltered:tied.map(x=>x.ws);
+    }
+    // Among cands, pick highest priority
+    cands.sort((a,b)=>fw[b].pr-fw[a].pr);
+    const winner=cands[0];
+    return tied.find(x=>x.ws===winner);
+  } else {
+    // Inhibitor only: tie-break by highest WS priority
+    tied.sort((a,b)=>fw[b.ws].pr-fw[a.ws].pr);
+    return tied[0];
+  }
 }
 
 /* ══════════ MANEUVER FEASIBILITY ══════════ */
 function assessMN(autoUsed,frame){
   const fw=AW[frame],unique=[...new Set(autoUsed)];
   if(!unique.length)return{ok:true,label:"N/A",detail:"",tier:0};
-  if(S.inhibitor){
-    // With Inhibitor, auto ignores maneuvers for WS selection
-    return{ok:true,label:"Inhibitor (dynamic)",detail:"Inhibitor overrides maneuvers — auto picks WS for highest-level SC.",tier:0};
+  const useDynamic=S.inhibitor||S.speedloader;
+  if(useDynamic){
+    // With Inhibitor and/or Speedloader, auto ignores maneuvers for WS selection (uses SC awareness)
+    const parts=[];
+    if(S.inhibitor)parts.push("Inhibitor");
+    if(S.speedloader)parts.push("Speedloader");
+    const label=parts.join("+")+" (dynamic)";
+    const tieNote=S.speedloader?"maneuver dominance":"WS priority";
+    return{ok:true,label,detail:parts.join("+")+": auto picks WS for highest-level SC. Ties broken by "+tieNote+".",tier:0};
   }
   const maxPr=Math.max(...Object.values(fw).map(w=>w.pr));
   if(unique.length===1){
@@ -222,7 +254,7 @@ function compute(){
   if(!an.length||!mn.length)return[];
   const len=S.steps,noL4=(S.weapon!=="godhands");
   const hmn=hasMN(),mnc=cntMN(),det=hmn?detAutoWS(S.frame,mnc):null;
-  const inhib=S.inhibitor;
+  const inhib=S.inhibitor||S.speedloader;
   const res=[];
 
   // Build initial states
@@ -256,7 +288,7 @@ function compute(){
         // Auto's turn
         if(inhib){
           // Inhibitor: auto picks best SC dynamically
-          const pick=inhibPick(s.rs,fw,an,noL4);
+          const pick=inhibPick(s.rs,fw,an,noL4,mnc,S.frame);
           if(pick) cands=[[pick.ws,fw[pick.ws].p,"A",pick.sc,pick.lv]];
         } else if(hmn&&det&&fw[det]){
           // No Inhibitor + maneuvers: always the determined WS
@@ -305,13 +337,28 @@ function render(){
   for(const w of WPNS){const sel=S.weapon===w.id;h+='<div class="ch '+(sel?'mo':'mf')+'" style="'+(sel?'box-shadow:0 0 0 2px #fbbf24':'')+';" onclick="setW(\''+w.id+'\')">'+esc(w.l)+' <span class="s">'+esc(w.d)+'</span></div>';}
   h+='</div></div>';
 
-  // ── INHIBITOR ──
-  h+='<div class="pnl dk" style="padding:10px 20px"><div class="rw" style="gap:12px">';
-  h+='<div class="ch '+(S.inhibitor?'ao':'af')+'" style="font-size:13px;'+(S.inhibitor?'box-shadow:0 0 0 2px #ef4444':'')+'" onclick="togInhib()">🔧 Inhibitor '+(S.inhibitor?'ON':'OFF')+'</div>';
-  h+='<span style="font-size:10px;color:#94a3b8">'+
-    (S.inhibitor
-      ? 'Auto opens with maneuver-determined WS. When closing, auto ignores maneuvers and picks WS for highest-level SC.'
-      : 'Auto always uses maneuver-determined WS. No SC intelligence. Can open or close.')
+  // ── ATTACHMENTS ──
+  h+='<div class="pnl dk" style="padding:10px 20px"><div class="lbl" style="margin-bottom:6px">🔩 AUTOMATON ATTACHMENTS</div><div class="rw" style="gap:12px;flex-wrap:wrap">';
+  // Inhibitor toggle
+  h+='<div style="display:flex;flex-direction:column;gap:4px">';
+  h+='<div class="ch '+(S.inhibitor?'ao':'af')+'" style="font-size:12px;'+(S.inhibitor?'box-shadow:0 0 0 2px #ef4444':'')+'" onclick="togInhib()">🔧 Inhibitor '+(S.inhibitor?'ON':'OFF')+'</div>';
+  h+='<span style="font-size:9px;color:#64748b;max-width:200px">Waits for master WS. SC awareness ON.<br>Tie-break: WS priority (unless Speedloader).</span>';
+  h+='</div>';
+  // Speedloader toggle
+  h+='<div style="display:flex;flex-direction:column;gap:4px">';
+  h+='<div class="ch '+(S.speedloader?'ao':'af')+'" style="font-size:12px;'+(S.speedloader?'box-shadow:0 0 0 2px #a78bfa':'')+'" onclick="togSpeed()">⚡ Speedloader '+(S.speedloader?'ON':'OFF')+'</div>';
+  h+='<span style="font-size:9px;color:#64748b;max-width:220px">Waits for master WS. SC awareness ON.<br>Tie-break: maneuver dominance (overrides Inhibitor).</span>';
+  h+='</div>';
+  // Combined status note
+  const anyAttach=S.inhibitor||S.speedloader;
+  h+='<span style="font-size:10px;color:#94a3b8;align-self:center">'+
+    ((!S.inhibitor&&!S.speedloader)
+      ? 'No attachments: auto uses maneuver-determined WS immediately. No SC awareness.'
+      : (S.inhibitor&&S.speedloader)
+        ? 'Both equipped: waits for master, SC awareness, tie-break by maneuver dominance.'
+        : S.speedloader
+          ? 'Speedloader only: waits for master, SC awareness, tie-break by maneuver dominance.'
+          : 'Inhibitor only: waits for master, SC awareness, tie-break by WS priority.')
     +'</span>';
   h+='</div></div>';
 
@@ -350,12 +397,16 @@ function render(){
         }
         if(wastedEls.length) explanation+=' ⚠ '+wastedEls.join(',')+' wasted (no WS uses this element on '+S.frame+').';
       }
-      const label=S.inhibitor ? 'Auto opens with' : 'Auto will always use';
+      const label=(S.inhibitor||S.speedloader) ? 'Auto opens with' : 'Auto will always use';
       h+='<div class="det" style="border-color:'+EC[di.m]+'55;background:'+EC[di.m]+'11">';
       h+='<span style="color:'+EC[di.m]+';font-weight:700">'+label+': 🤖 '+esc(wsName)+'</span>';
       h+=' <span style="color:#94a3b8">('+di.p.join('/')+' • '+di.m+' • P'+di.pr+')</span>';
       h+='<br><span style="color:#64748b;font-size:10px">'+esc(explanation)+'</span>';
-      if(S.inhibitor) h+='<br><span style="color:#fca5a5;font-size:10px">Inhibitor: when closing, maneuvers ignored — auto picks WS for highest-level SC instead.</span>';
+      if(S.inhibitor||S.speedloader){
+        const parts=[],tieNote=S.speedloader?'maneuver dominance':'WS priority';
+        if(S.inhibitor)parts.push('Inhibitor');if(S.speedloader)parts.push('Speedloader');
+        h+='<br><span style="color:#fca5a5;font-size:10px">'+parts.join('+')+': when closing, auto picks WS for highest-level SC. Ties broken by '+tieNote+'.</span>';
+      }
       h+='</div>';
     }
   }
@@ -404,11 +455,8 @@ function render(){
   if(S.minLv>1)f=f.filter(c=>c.maxLv>=S.minLv);
   if(S.search){const t=S.search.toLowerCase();f=f.filter(c=>c.steps.some(x=>x.ws.toLowerCase().includes(t)));}
   f.sort((a,b)=>b.maxLv-a.maxLv);
-  const feasC=cache.filter(c=>c.mn.ok&&c.maxLv>=S.minLv).length;
 
-  h+='<div class="sts"><span>Total '+S.steps+'-step: <b>'+cache.length+'</b></span>';
-  h+='<span>Filtered: <b>'+f.length+'</b></span>';
-  h+='<span>Feasible: <b class="g">'+feasC+'</b></span></div>';
+  h+='<div class="sts"><span>Total '+S.steps+'-step: <b>'+cache.length+'</b></span></div>';
 
   h+='<div class="res">';
   const shown=f.slice(0,S.showN);
@@ -436,9 +484,10 @@ function render(){
 /* ══════════ ACTIONS ══════════ */
 function tog(p){S.po[p]=!S.po[p];render();}
 function togD(i){const e=document.getElementById("d"+i),a=document.getElementById("a"+i);e.classList.toggle("open");a.textContent=e.classList.contains("open")?"▲":"▼";}
-function setS(k,v){S[k]=v;if(["frame","steps","start","minLv","inhibitor"].includes(k)){cache=null;S.showN=100;}render();}
+function setS(k,v){S[k]=v;if(["frame","steps","start","minLv","inhibitor","speedloader"].includes(k)){cache=null;S.showN=100;}render();}
 function setW(w){S.weapon=w;for(const[n,i]of Object.entries(MW))if(i.w)S.mExcl[n]=(WGATES[i.w]!==w);cache=null;S.showN=100;render();}
 function togInhib(){S.inhibitor=!S.inhibitor;cache=null;S.showN=100;render();}
+function togSpeed(){S.speedloader=!S.speedloader;cache=null;S.showN=100;render();}
 function addMN(el){for(let i=0;i<3;i++){if(!S.maneuvers[i]){S.maneuvers[i]=el;break;}}cache=null;S.showN=100;render();}
 function clrMN(i){S.maneuvers[i]=null;S.maneuvers=S.maneuvers.filter(m=>m!==null);while(S.maneuvers.length<3)S.maneuvers.push(null);cache=null;S.showN=100;render();}
 function clrAllMN(){S.maneuvers=[null,null,null];cache=null;S.showN=100;render();}
