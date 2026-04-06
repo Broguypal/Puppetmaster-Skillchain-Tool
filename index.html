@@ -41,7 +41,7 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 .cs{display:flex;align-items:center;gap:6px;padding:8px 12px;cursor:pointer;flex-wrap:wrap}.cs:hover{background:#fff1}
 .lvb{font-size:11px;font-weight:800;padding:2px 7px;border-radius:3px;min-width:26px;text-align:center;color:#fff}
 .lvb.l1{background:#4b5563}.lvb.l2{background:#2563eb}.lvb.l3{background:#dc2626}.lvb.l4{background:#d97706}
-.cf{display:flex;align-items:center;gap:2px;flex-wrap:wrap;flex:1}
+.cf{display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap;flex:1}
 .wt{display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;white-space:nowrap}
 .wt.m{background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb44}
 .wt.a{background:#5c1a1a;color:#fca5a5;border:1px solid #dc262644}
@@ -468,7 +468,7 @@ function render(){
   for(let i=0;i<shown.length;i++){
     const c=shown[i],lc=c.maxLv>=4?"l4":c.maxLv>=3?"l3":c.maxLv>=2?"l2":"l1";
     const tc=["#4ade80","#fbbf24","#f87171"][c.mn.tier]||"#888";
-    let fl='';for(let j=0;j<c.steps.length;j++){const s=c.steps[j];if(j)fl+='<span style="color:#475569;font-size:11px">→</span>';fl+=wsT(s.ws,s.src);if(s.sc)fl+='<span style="color:#475569;font-size:9px">⇒</span>'+scB(s.sc,s.lv);}
+    let fl='';for(let j=0;j<c.steps.length;j++){const s=c.steps[j];if(j)fl+='<span style="color:#475569;font-size:11px;margin-top:4px;align-self:flex-start">→</span>';fl+='<div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:3px">'+wsT(s.ws,s.src)+(s.sc?scB(s.sc,s.lv):'')+'</div>';}
     let dt='<div style="margin-bottom:6px"><b style="color:#64748b">Setup: </b><span style="color:'+tc+'">'+esc(c.mn.detail)+'</span></div>';
     if(c.maxLv>=4)dt+='<div style="margin-bottom:6px;color:#d97706;font-weight:700">⚠ L4 requires Godhands + Aeonic Aftermath on closing WS</div>';
     dt+='<div style="margin-bottom:6px"><b style="color:#64748b">Steps:</b><div class="sl">';
