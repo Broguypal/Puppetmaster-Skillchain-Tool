@@ -76,6 +76,7 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 <b>Both:</b> Auto waits. Highest SC level. Ties by maneuver dominance. Speedloader's behavior wins. Best combo for SC optimization.<br>
 <b>Opening WS:</b> All modes use maneuver-determined WS for opening (no prior WS to chain with).<br>
 <b>Maneuver rule:</b> Max 3 active (can repeat). Auto picks WS whose element has most stacks. Ties → highest priority WS wins. Elements not mapped to any frame WS are wasted.<br>
+<b>SC Resolution:</b> Speedloader SELECTS the WS with highest potential SC level (bestSC), but the actual SC that fires follows standard first-match property order (trySC).<br>
 <b>L4 (Radiance/Umbra):</b> Requires Godhands + Aeonic Aftermath.<br>
 <b>Weapon-gated WS:</b> Dragon Blow = Dragon Fangs. Maru Kala = Varga Purnikawa. Only one weapon at a time.<br>
 <b style="color:#93c5fd">🥊 Master Only mode:</b> Shows all skillchains achievable by the Master WSing repeatedly with themselves. Attachments and maneuvers are irrelevant.<br>
@@ -84,28 +85,18 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 <script>
 /* ══════════ SC RULES ══════════ */
 const SC={
-// L1 — from Compression resonance
 "Compression→Transfixion":["Transfixion",1],"Compression→Detonation":["Detonation",1],
-// L1 — from Transfixion resonance
 "Transfixion→Compression":["Compression",1],"Transfixion→Reverberation":["Reverberation",1],"Transfixion→Scission":["Distortion",2],
-// L1 — from Liquefaction resonance
 "Liquefaction→Impaction":["Fusion",2],"Liquefaction→Scission":["Scission",1],
-// L1 — from Scission resonance
 "Scission→Liquefaction":["Liquefaction",1],"Scission→Reverberation":["Reverberation",1],"Scission→Detonation":["Detonation",1],
-// L1 — from Induration resonance
 "Induration→Reverberation":["Fragmentation",2],"Induration→Compression":["Compression",1],"Induration→Impaction":["Impaction",1],
-// L1 — from Reverberation resonance
 "Reverberation→Induration":["Induration",1],"Reverberation→Impaction":["Impaction",1],
-// L1 — from Detonation resonance
 "Detonation→Compression":["Gravitation",2],"Detonation→Scission":["Scission",1],
-// L1 — from Impaction resonance
 "Impaction→Liquefaction":["Liquefaction",1],"Impaction→Detonation":["Detonation",1],
-// L2 cycling
 "Gravitation→Fragmentation":["Fragmentation",2],"Gravitation→Distortion":["Darkness",3],
 "Fragmentation→Distortion":["Distortion",2],"Fragmentation→Fusion":["Light",3],
 "Distortion→Fusion":["Fusion",2],"Distortion→Gravitation":["Darkness",3],
 "Fusion→Gravitation":["Gravitation",2],"Fusion→Fragmentation":["Light",3],
-// L4
 "Light→Light":["Radiance",4],"Darkness→Darkness":["Umbra",4],
 };
 
@@ -216,6 +207,7 @@ function inhibOnlyPick(res,fw,names,noL4){
 }
 
 /* Speedloader (with or without Inhibitor): highest SC level, ties by maneuver dominance */
+/* FIX APPLIED: After selecting by bestSC (potential), resolve actual SC via anySC (first-match) */
 function speedloaderPick(res,fw,names,noL4,frame){
   const mnc=cntMN();
   let best=null;
@@ -225,7 +217,6 @@ function speedloaderPick(res,fw,names,noL4,frame){
     if(!best){best={ws:n,sc:sc[0],lv:sc[1]};continue;}
     if(sc[1]>best.lv){best={ws:n,sc:sc[0],lv:sc[1]};continue;}
     if(sc[1]===best.lv){
-      // Tie-break by maneuver dominance
       const curStacks=mnc[fw[best.ws].m]||0;
       const newStacks=mnc[fw[n].m]||0;
       if(newStacks>curStacks||(newStacks===curStacks&&fw[n].pr>fw[best.ws].pr)){
@@ -233,6 +224,12 @@ function speedloaderPick(res,fw,names,noL4,frame){
       }
     }
   }
+  /* ═══ FIX: resolve actual SC using first-match order (what fires in-game) ═══
+     Speedloader SELECTS the WS with highest potential SC level (bestSC above),
+     but the SC that actually fires follows standard property iteration order.
+     This was confirmed in-game: Tornado Kick → Cannibal Blade fires L1 Compression
+     (first match), not L2 Fragmentation (best potential). */
+  if(best){const actual=anySC(res,fw[best.ws].p,noL4);if(actual){best.sc=actual[0];best.lv=actual[1];}}
   return best;
 }
 
@@ -266,7 +263,6 @@ function assessMN(autoUsed,frame){
 
 /* ══════════ CHAIN ENGINE ══════════ */
 
-/* Master-only: every step is a Master WS chaining with itself */
 function computeMasterOnly(){
   const mws=getMWS();
   const mn=Object.keys(mws);
@@ -298,7 +294,6 @@ function computeMasterOnly(){
   return res;
 }
 
-/* Auto-only: every step is an Auto WS chaining with itself */
 function computeAutoOnly(){
   const fw=getAWS();
   const an=Object.keys(fw);
@@ -308,7 +303,6 @@ function computeAutoOnly(){
   const det=hmn?detAutoWS(S.frame,mnc):null;
   const hasAttach=S.inhibitor||S.speedloader;
   const res=[];
-  // Opening WS: maneuver-determined or highest priority
   let openWS;
   if(hmn&&det&&fw[det]) openWS=det;
   else{const maxPr=Math.max(...an.map(n=>fw[n].pr));openWS=an.find(n=>fw[n].pr===maxPr);}
@@ -358,19 +352,14 @@ function compute(){
   const hasAttach=S.inhibitor||S.speedloader;
   const res=[];
 
-  // Build initial states
   const init=[];
-  // Master can always open
   if(S.start==="Master"||S.start==="Both")
     for(const m of mn) init.push({ch:[{ws:m,src:"M",sc:null,lv:null}],rs:mws[m].p,nx:"A"});
 
-  // Auto opening: uses maneuver-determined WS (Inhibitor doesn't change opener behavior)
   if(S.start==="Auto"||S.start==="Both"){
     if(hmn){
-      // Maneuvers set: auto opens with determined WS
       if(det&&fw[det]) init.push({ch:[{ws:det,src:"A",sc:null,lv:null}],rs:fw[det].p,nx:"M"});
     } else {
-      // No maneuvers: auto opens with highest priority (default)
       const maxPr=Math.max(...an.map(n=>fw[n].pr));
       const defWS=an.find(n=>fw[n].pr===maxPr);
       if(defWS) init.push({ch:[{ws:defWS,src:"A",sc:null,lv:null}],rs:fw[defWS].p,nx:"M"});
@@ -386,16 +375,12 @@ function compute(){
       if(s.nx==="M"){
         cands=mn.map(n=>[n,mws[n].p,"M",null,null]);
       } else {
-        // Auto's turn
         if(hasAttach){
-          // Inhibitor/Speedloader: auto picks SC dynamically
           const pick=autoPick(s.rs,fw,an,noL4,S.frame);
           if(pick) cands=[[pick.ws,fw[pick.ws].p,"A",pick.sc,pick.lv]];
         } else if(hmn&&det&&fw[det]){
-          // No Inhibitor + maneuvers: always the determined WS
           cands=[[det,fw[det].p,"A",null,null]];
         } else if(!hmn){
-          // No maneuvers, no Inhibitor: auto always uses highest priority
           const maxPr=Math.max(...an.map(n=>fw[n].pr));
           const defWS=an.find(n=>fw[n].pr===maxPr);
           if(defWS) cands=[[defWS,fw[defWS].p,"A",null,null]];
@@ -433,13 +418,10 @@ function render(){
   const fw=AW[S.frame];
   let h='';
 
-  // ── WEAPON (always visible) ──
   h+='<div class="pnl md" style="padding:12px 20px"><div class="lbl">🗡️ EQUIPPED WEAPON</div><div class="rw" style="gap:6px">';
   for(const w of WPNS){const sel=S.weapon===w.id;h+='<div class="ch '+(sel?'mo':'mf')+'" style="'+(sel?'box-shadow:0 0 0 2px #fbbf24':'')+';" onclick="setW(\''+w.id+'\')">'+esc(w.l)+' <span class="s">'+esc(w.d)+'</span></div>';}
   h+='</div></div>';
 
-  // ── ATTACHMENTS ──
-  const hasAny=S.inhibitor||S.speedloader;
   if(S.chainMode!=="masterOnly"){
   h+='<div class="pnl dk" style="padding:10px 20px">';
   h+='<div class="lbl" style="margin-bottom:6px">ATTACHMENTS</div>';
@@ -447,7 +429,6 @@ function render(){
   h+='<div class="ch '+(S.inhibitor?'ao':'af')+'" style="font-size:12px;'+(S.inhibitor?'box-shadow:0 0 0 2px #ef4444':'')+'" onclick="togInhib()">🔧 Inhibitor '+(S.inhibitor?'ON':'OFF')+'</div>';
   h+='<div class="ch '+(S.speedloader?'ao':'af')+'" style="font-size:12px;'+(S.speedloader?'box-shadow:0 0 0 2px #f97316':'')+'" onclick="togSpeed()">⚡ Speedloader '+(S.speedloader?'ON':'OFF')+'</div>';
   h+='</div>';
-  // Description based on current combo
   let attachDesc='';
   if(!S.inhibitor&&!S.speedloader) attachDesc='No SC attachments. Auto WSes freely with maneuver-determined WS. No SC awareness.';
   else if(S.speedloader&&!S.inhibitor) attachDesc='Auto waits. Picks WS for highest SC level. Ties broken by maneuver dominance.';
@@ -459,7 +440,6 @@ function render(){
   h+='</div>';
   }
 
-  // ── MANEUVERS ──
   if(S.chainMode!=="masterOnly"){
   h+='<div class="pnl dk">';
   h+='<div class="ph" onclick="tog(\'mn\')"><span style="font-size:10px;color:#64748b">'+(S.po.mn?'▼':'▶')+'</span><h3 style="color:#a78bfa">🎛️ MANEUVER SETUP</h3></div>';
@@ -471,11 +451,11 @@ function render(){
   for(const el of ELS) h+='<div class="mn-el" style="background:'+EC[el]+'22;color:'+EC[el]+';border-color:'+EC[el]+'55" onclick="addMN(\''+el+'\')">'+el+'</div>';
   h+='</div>';
 
-  // Determined WS display (always show — auto uses this for opening regardless of Inhibitor)
   {
     const wsName=det||(()=>{const e=Object.entries(fw);e.sort((a,b)=>b[1].pr-a[1].pr);return e[0]?e[0][0]:null;})();
     if(wsName&&fw[wsName]){
       const di=fw[wsName];
+      const hasAny=S.inhibitor||S.speedloader;
       let explanation='';
       if(!hmn){
         explanation='No maneuvers active → default to highest priority WS (P'+di.pr+').';
@@ -502,7 +482,7 @@ function render(){
       h+='<br><span style="color:#64748b;font-size:10px">'+esc(explanation)+'</span>';
       if(hasAny){
         if(S.speedloader)
-          h+='<br><span style="color:#f97316;font-size:10px">Speedloader closing: picks WS for highest SC level. Ties → maneuver dominance.</span>';
+          h+='<br><span style="color:#f97316;font-size:10px">Speedloader closing: picks WS for highest SC level. Ties → maneuver dominance. Actual SC follows first-match property order.</span>';
         else
           h+='<br><span style="color:#fca5a5;font-size:10px">Inhibitor closing: picks highest-priority WS that can chain. SC level ignored.</span>';
       }
@@ -510,9 +490,8 @@ function render(){
     }
   }
   h+='</div></div>';
-  } // end if chainMode!==masterOnly (maneuver panel)
+  }
 
-  // ── MASTER WS ──
   if(S.chainMode!=="autoOnly"){
   h+='<div class="pnl md">';
   const mOn=Object.keys(MW).filter(n=>!S.mExcl[n]&&(!MW[n].w||WGATES[MW[n].w]===S.weapon)).length;
@@ -527,7 +506,6 @@ function render(){
   h+='</div><div class="rw" style="margin-top:6px;gap:4px"><button class="b sm" onclick="allMW(0)">Enable all</button><button class="b sm" onclick="allMW(1)">Disable all</button></div></div></div>';
   }
 
-  // ── AUTO WS ──
   if(S.chainMode!=="masterOnly"){
   h+='<div class="pnl md">';
   const aOn=Object.keys(fw).filter(n=>!S.aExcl[S.frame][n]).length;
@@ -542,7 +520,6 @@ function render(){
   h+='</div><div class="rw" style="margin-top:6px;gap:4px"><button class="b sm" onclick="allAW(0)">Enable all</button><button class="b sm" onclick="allAW(1)">Disable all</button></div></div></div>';
   }
 
-  // ── CONTROLS ──
   h+='<div class="pnl dk"><div class="rw sp">';
   function cg(l,b){return'<div class="col"><div class="lbl">'+l.toUpperCase()+'</div><div class="rw" style="gap:3px">'+b+'</div></div>';}
   function bt(f,v,d){return'<button class="b'+(S[f]===v?' on':'')+'" onclick="setS(\''+f+'\','+(typeof v==='string'?"'"+v+"'":v)+')">'+esc(d||String(v))+'</button>';}
@@ -555,7 +532,6 @@ function render(){
   h+=cg("Search",'<input class="inp" value="'+esc(S.search)+'" placeholder="WS name..." oninput="setS(\'search\',this.value)">');
   h+='</div></div>';
 
-  // ── FILTER & DISPLAY ──
   let f=cache.slice();
   if(S.minLv>1)f=f.filter(c=>c.maxLv>=S.minLv);
   if(S.search){const t=S.search.toLowerCase();f=f.filter(c=>c.steps.some(x=>x.ws.toLowerCase().includes(t)));}
@@ -581,7 +557,7 @@ function render(){
     dt+='<div style="margin-bottom:6px"><b style="color:#64748b">Steps:</b><div class="sl">';
     for(let j=0;j<c.steps.length;j++){const s=c.steps[j],isM=s.src==="M",wd=isM?MW[s.ws]:fw[s.ws];
       const inf=isM?'Props: '+wd.p.join('/')+' | '+wd.s+(wd.w?' | Weapon-gated':''):'Props: '+wd.p.join('/')+' | '+wd.m+' | P'+wd.pr;
-      dt+='<div class="si"><span style="color:#64748b">'+( j+1)+': </span><span style="color:'+(isM?'#93c5fd':'#fca5a5')+';font-weight:600">'+(isM?'[M]':'[A]')+' '+esc(s.ws)+'</span> <span style="color:#475569;font-size:11px">'+esc(inf)+'</span>';
+      dt+='<div class="si"><span style="color:#64748b">'+(j+1)+': </span><span style="color:'+(isM?'#93c5fd':'#fca5a5')+';font-weight:600">'+(isM?'[M]':'[A]')+' '+esc(s.ws)+'</span> <span style="color:#475569;font-size:11px">'+esc(inf)+'</span>';
       if(s.sc)dt+=' '+scB(s.sc,s.lv);dt+='</div>';}
     dt+='</div></div>';
     h+='<div class="cc"><div class="cs" onclick="togD('+i+')"><span class="lvb '+lc+'">L'+c.maxLv+'</span><div class="cf">'+fl+'</div><span class="mb" style="background:'+tc+'22;color:'+tc+';border:1px solid '+tc+'44">'+esc(c.mn.label)+'</span><span style="font-size:12px;color:#475569" id="a'+i+'">▼</span></div><div class="cd" id="d'+i+'">'+dt+'</div></div>';
