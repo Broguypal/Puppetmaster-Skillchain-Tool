@@ -72,11 +72,11 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 <div style="font-weight:700;margin-bottom:4px;letter-spacing:1px;color:#94a3b8">MECHANICS REFERENCE</div>
 <b>No Attachments:</b> Auto WSes freely. No waiting, no SC awareness. Uses maneuver-determined WS.<br>
 <b>Inhibitor Only:</b> Auto waits (master TP≥~900). SC awareness. Picks <u>highest-priority WS that can form any SC</u>. SC level is ignored. Maneuvers ignored for closing.<br>
-<b>Speedloader Only:</b> Auto waits. SC awareness. Picks WS for <u>highest SC level</u>. Ties broken by <u>maneuver dominance</u>.<br>
-<b>Both:</b> Auto waits. Highest SC level. Ties by maneuver dominance. Speedloader's behavior wins. Best combo for SC optimization.<br>
+<b>Speedloader Only:</b> Auto waits. SC awareness. Picks WS for <u>highest SC level</u> (using first-match resolution). Ties broken by <u>SC result ordering</u>, then priority.<br>
+<b>Both:</b> Auto waits. Highest SC level (first-match). Ties by SC result ordering, then priority. Speedloader's behavior wins.<br>
 <b>Opening WS:</b> All modes use maneuver-determined WS for opening (no prior WS to chain with).<br>
 <b>Maneuver rule:</b> Max 3 active (can repeat). Auto picks WS whose element has most stacks. Ties → highest priority WS wins. Elements not mapped to any frame WS are wasted.<br>
-<b>SC Resolution:</b> Speedloader SELECTS the WS with highest potential SC level (bestSC), but the actual SC that fires follows standard first-match property order (trySC).<br>
+<b>SC Resolution:</b> Both selection and resolution use first-match property order (matching Lua check_props). Ties broken by SC result index (Compression→Liquefaction→...→Impaction), then priority.<br>
 <b>L4 (Radiance/Umbra):</b> Requires Godhands + Aeonic Aftermath.<br>
 <b>Weapon-gated WS:</b> Dragon Blow = Dragon Fangs. Maru Kala = Varga Purnikawa. Only one weapon at a time.<br>
 <b style="color:#93c5fd">🥊 Master Only mode:</b> Shows all skillchains achievable by the Master WSing repeatedly with themselves. Attachments and maneuvers are irrelevant.<br>
@@ -206,30 +206,26 @@ function inhibOnlyPick(res,fw,names,noL4){
   return best;
 }
 
-/* Speedloader (with or without Inhibitor): highest SC level, ties by maneuver dominance */
-/* FIX APPLIED: After selecting by bestSC (potential), resolve actual SC via anySC (first-match) */
+/* Speedloader (with or without Inhibitor): uses trySC (first-match) for both selection and resolution.
+   Tie-break: SC result index from skillchains array (lower = preferred), then priority.
+   Confirmed via exhaustive in-game testing: maneuvers do NOT affect tie-breaking. */
+const SCORDER=["Light","Darkness","Gravitation","Fragmentation","Distortion","Fusion","Compression","Liquefaction","Induration","Reverberation","Transfixion","Scission","Detonation","Impaction","Radiance","Umbra"];
+const SCIDX={};SCORDER.forEach((n,i)=>SCIDX[n]=i);
+
 function speedloaderPick(res,fw,names,noL4,frame){
-  const mnc=cntMN();
   let best=null;
   for(const n of names){
-    const sc=bestSC(res,fw[n].p,noL4);
+    const sc=anySC(res,fw[n].p,noL4);
     if(!sc)continue;
-    if(!best){best={ws:n,sc:sc[0],lv:sc[1]};continue;}
-    if(sc[1]>best.lv){best={ws:n,sc:sc[0],lv:sc[1]};continue;}
+    const scIdx=SCIDX[sc[0]]!=null?SCIDX[sc[0]]:99;
+    if(!best){best={ws:n,sc:sc[0],lv:sc[1],scIdx};continue;}
+    if(sc[1]>best.lv){best={ws:n,sc:sc[0],lv:sc[1],scIdx};continue;}
     if(sc[1]===best.lv){
-      const curStacks=mnc[fw[best.ws].m]||0;
-      const newStacks=mnc[fw[n].m]||0;
-      if(newStacks>curStacks||(newStacks===curStacks&&fw[n].pr>fw[best.ws].pr)){
-        best={ws:n,sc:sc[0],lv:sc[1]};
+      if(scIdx<best.scIdx||(scIdx===best.scIdx&&fw[n].pr>fw[best.ws].pr)){
+        best={ws:n,sc:sc[0],lv:sc[1],scIdx};
       }
     }
   }
-  /* ═══ FIX: resolve actual SC using first-match order (what fires in-game) ═══
-     Speedloader SELECTS the WS with highest potential SC level (bestSC above),
-     but the SC that actually fires follows standard property iteration order.
-     This was confirmed in-game: Tornado Kick → Cannibal Blade fires L1 Compression
-     (first match), not L2 Fragmentation (best potential). */
-  if(best){const actual=anySC(res,fw[best.ws].p,noL4);if(actual){best.sc=actual[0];best.lv=actual[1];}}
   return best;
 }
 
@@ -431,9 +427,9 @@ function render(){
   h+='</div>';
   let attachDesc='';
   if(!S.inhibitor&&!S.speedloader) attachDesc='No SC attachments. Auto WSes freely with maneuver-determined WS. No SC awareness.';
-  else if(S.speedloader&&!S.inhibitor) attachDesc='Auto waits. Picks WS for highest SC level. Ties broken by maneuver dominance.';
+  else if(S.speedloader&&!S.inhibitor) attachDesc='Auto waits. Picks WS for highest SC level (first-match). Ties broken by SC result ordering, then priority.';
   else if(S.inhibitor&&!S.speedloader) attachDesc='Auto waits. Picks highest-priority WS that can form any SC. SC level is IGNORED. Maneuvers ignored for closing.';
-  else attachDesc='Auto waits. Picks WS for highest SC level (Speedloader wins). Ties broken by maneuver dominance. Best of both worlds.';
+  else attachDesc='Auto waits. Picks WS for highest SC level (Speedloader wins). Ties broken by SC result ordering, then priority.';
   h+='<div style="margin-top:6px;font-size:10px;color:#94a3b8">'+attachDesc+'</div>';
   if(S.chainMode==="autoOnly"&&!S.inhibitor&&!S.speedloader)
     h+='<div style="margin-top:4px;font-size:10px;color:#fbbf24">⚠ Auto Only with no attachments: auto always fires the same WS — only self-chaining SCs are possible.</div>';
@@ -482,7 +478,7 @@ function render(){
       h+='<br><span style="color:#64748b;font-size:10px">'+esc(explanation)+'</span>';
       if(hasAny){
         if(S.speedloader)
-          h+='<br><span style="color:#f97316;font-size:10px">Speedloader closing: picks WS for highest SC level. Ties → maneuver dominance. Actual SC follows first-match property order.</span>';
+          h+='<br><span style="color:#f97316;font-size:10px">Speedloader closing: picks WS for highest SC level (first-match). Ties → SC result ordering, then priority. Maneuvers do NOT affect tie-breaking.</span>';
         else
           h+='<br><span style="color:#fca5a5;font-size:10px">Inhibitor closing: picks highest-priority WS that can chain. SC level ignored.</span>';
       }
