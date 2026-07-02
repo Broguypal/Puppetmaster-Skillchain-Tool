@@ -65,7 +65,7 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 <body>
 <div class="hdr">
 <h1>⚙ PUP SOLO SKILLCHAIN VISUALIZER</h1>
-<p>FFXI Puppetmaster — Master H2H ↔ Automaton WS • Proper Inhibitor/maneuver mechanics &nbsp;•&nbsp; <span style="color:#fbbf24">By Broguypal</span></p>
+<p>FFXI Puppetmaster — Master H2H ↔ Automaton WS • Proper Inhibitor/maneuver mechanics &nbsp;•&nbsp; <span style="color:#fbbf24">By Broguypal</span> &nbsp;•&nbsp; <span style="color:#4ade80">v2 — audited against Skillchains.lua / skills.lua + BG-wiki Lv4 rules</span></p>
 </div>
 <div id="app"></div>
 <div class="leg">
@@ -76,14 +76,22 @@ body{font-family:'JetBrains Mono','Fira Code','SF Mono','Consolas',monospace;bac
 <b>Both:</b> Auto waits. Highest SC level (first-match). Ties by SC result ordering, then priority. Speedloader's behavior wins.<br>
 <b>Opening WS:</b> All modes use maneuver-determined WS for opening (no prior WS to chain with).<br>
 <b>Maneuver rule:</b> Max 3 active (can repeat). Auto picks WS whose element has most stacks. Ties → highest priority WS wins. Elements not mapped to any frame WS are wasted.<br>
-<b>SC Resolution:</b> Both selection and resolution use first-match property order (matching Lua check_props). Ties broken by SC result index (Compression→Liquefaction→...→Impaction), then priority.<br>
-<b>L4 (Radiance/Umbra):</b> Requires Godhands + Aeonic Aftermath.<br>
+<b>SC Resolution:</b> Both selection and resolution use first-match property order (matching Lua check_props). Ties broken by SC result index (Light→Darkness→Gravitation→...), then priority.<br>
+<div style="font-weight:700;margin:8px 0 4px;letter-spacing:1px;color:#94a3b8">LEVEL 4 / ULTIMATE SKILLCHAINS</div>
+<b style="color:#fbbf24">Lv4 Light ("double light"):</b> Light (WS property <u>or</u> Light skillchain) → Light-property WS = Level 4 Light. <u>Available to anyone, no aeonic weapon required.</u> Cannot be continued by any further WS — it closes the chain. Same for <b style="color:#a855f7">Lv4 Darkness ("double darkness")</b> via Darkness → Darkness-property WS.<br>
+<b style="color:#fef08a">Radiance / Umbra (Ultimate SC):</b> Same Light→Light / Darkness→Darkness trigger, but the Master must have <u>Godhands equipped with Aeonic Aftermath active</u> when closing. Minimum chain length depends on AM level: <b>AM3</b> = closer can be the 2nd WS (Light WS → Light WS) • <b>AM2</b> = closer must be the 3rd WS or later (any SC → Light SC → Light WS) • <b>AM1</b> = closer must be the 4th WS or later. Below the threshold, the result is still a Lv4 double Light/Darkness — just not Radiance/Umbra.<br>
+<b style="color:#fbbf24">Shijin Spiral bonus property:</b> While Godhands Aeonic Aftermath is active, Shijin Spiral gains an extra skillchain property: <u>Light</u> (on top of its normal Fusion/Reverberation). This lets Shijin Spiral itself open or close Light→Light chains.<br>
+<div style="font-weight:700;margin:8px 0 4px;letter-spacing:1px;color:#94a3b8">OTHER NOTES</div>
 <b>Weapon-gated WS:</b> Dragon Blow = Dragon Fangs. Maru Kala = Varga Purnikawa. Only one weapon at a time.<br>
 <b style="color:#93c5fd">🥊 Master Only mode:</b> Shows all skillchains achievable by the Master WSing repeatedly with themselves. Attachments and maneuvers are irrelevant.<br>
 <b style="color:#fca5a5">🤖 Auto Only mode:</b> Shows all skillchains the Automaton can form with itself. Without attachments, auto repeats the same WS (limited SCs). Inhibitor/Speedloader enable dynamic WS selection for complex chains.
 </div>
 <script>
-/* ══════════ SC RULES ══════════ */
+/* ══════════ SC RULES ══════════
+   Matches Skillchains.lua sc_info exactly (opener property → closer property : [result, level]).
+   AUDIT FIX: Light→Light and Darkness→Darkness produce Lv4 "Light"/"Darkness" (double light/darkness)
+   for ANYONE. They are renamed Radiance/Umbra only when the Godhands Aeonic Aftermath criteria are met
+   (see l4name). Lv4 always CLOSES the chain (Skillchains.lua: closed = level == 4). */
 const SC={
 "Compression→Transfixion":["Transfixion",1],"Compression→Detonation":["Detonation",1],
 "Transfixion→Compression":["Compression",1],"Transfixion→Reverberation":["Reverberation",1],"Transfixion→Scission":["Distortion",2],
@@ -97,17 +105,19 @@ const SC={
 "Fragmentation→Distortion":["Distortion",2],"Fragmentation→Fusion":["Light",3],
 "Distortion→Fusion":["Fusion",2],"Distortion→Gravitation":["Darkness",3],
 "Fusion→Gravitation":["Gravitation",2],"Fusion→Fragmentation":["Light",3],
-"Light→Light":["Radiance",4],"Darkness→Darkness":["Umbra",4],
+"Light→Light":["Light",4],"Darkness→Darkness":["Darkness",4],
 };
 
-/* ══════════ WS DATA ══════════ */
+/* ══════════ WS DATA ══════════
+   Master H2H WS: matches skills.lua weapon_skills (property ORDER preserved — first-match matters).
+   AUDIT FIX: Tornado Kick order = Induration, Detonation, Impaction (skills.lua id 13). */
 const MW={
 "Combo":{p:["Impaction"],s:"5",w:0},"Shoulder Tackle":{p:["Reverberation","Impaction"],s:"40",w:0},
 "One Inch Punch":{p:["Compression"],s:"75",w:0},"Backhand Blow":{p:["Detonation"],s:"100",w:0},
 "Raging Fists":{p:["Impaction"],s:"125",w:0},"Spinning Attack":{p:["Liquefaction","Impaction"],s:"150",w:0},
 "Howling Fist":{p:["Transfixion","Impaction"],s:"200",w:0},"Dragon Kick":{p:["Fragmentation"],s:"225",w:0},
 "Asuran Fists":{p:["Gravitation","Liquefaction"],s:"250",w:0},
-"Tornado Kick":{p:["Induration","Impaction","Detonation"],s:"300",w:0},
+"Tornado Kick":{p:["Induration","Detonation","Impaction"],s:"300",w:0},
 "Shijin Spiral":{p:["Fusion","Reverberation"],s:"Merit",w:0},
 "Victory Smite":{p:["Light","Fragmentation"],s:"Empyrean",w:0},
 "Stringing Pummel":{p:["Gravitation","Liquefaction"],s:"Mythic",w:0},
@@ -116,9 +126,17 @@ const MW={
 };
 const WGATES=["standard","varga","dragonfangs"];
 
+/* Automaton WS: matches skills.lua monster_abilities (property ORDER preserved).
+   AUDIT FIXES vs previous version:
+   - Chimera Ripper: Induration, Detonation (skills.lua 1940; order was flipped)
+   - Daze: Impaction, Transfixion (per BG-wiki + observed in-game chains, e.g.
+     Daze → Arcuballista = Liquefaction, which requires Impaction)
+   KNOWN skills.lua DATA ERROR: skills.lua 1941 lists String Clipper as Scission/Impaction
+   and 2066 lists Daze as Transfixion only — the Impaction was misplaced onto String Clipper
+   instead of Daze. Correct data: String Clipper = Scission only; Daze = Impaction/Transfixion. */
 const AW={
 Valoredge:{
-"Chimera Ripper":{p:["Detonation","Induration"],m:"Fire",pr:1},
+"Chimera Ripper":{p:["Induration","Detonation"],m:"Fire",pr:1},
 "String Clipper":{p:["Scission"],m:"Thunder",pr:2},
 "Cannibal Blade":{p:["Compression","Reverberation"],m:"Dark",pr:3},
 "Bone Crusher":{p:["Fragmentation"],m:"Light",pr:4},
@@ -141,11 +159,11 @@ const ELS=["Fire","Ice","Wind","Earth","Thunder","Water","Light","Dark"];
 const EC={Fire:"#ef4444",Ice:"#7dd3fc",Wind:"#86efac",Earth:"#d4a574",Thunder:"#a78bfa",Water:"#60a5fa",Light:"#fbbf24",Dark:"#a855f7"};
 const SCC={Transfixion:"#fde68a",Compression:"#c084fc",Liquefaction:"#f87171",Scission:"#d4a574",Impaction:"#60a5fa",Detonation:"#86efac",Induration:"#bae6fd",Reverberation:"#7dd3fc",Distortion:"#3b82f6",Fragmentation:"#4ade80",Fusion:"#ef4444",Gravitation:"#a855f7",Light:"#fbbf24",Darkness:"#7c3aed",Radiance:"#fef08a",Umbra:"#581c87"};
 const DSC=new Set(["Darkness","Umbra","Compression","Gravitation","Distortion"]);
-const WPNS=[{id:"standard",l:"Any H2H",d:"All base WS"},{id:"godhands",l:"Godhands",d:"Aeonic — L4 chains"},{id:"varga",l:"Varga Purnikawa",d:"Prime — Maru Kala"},{id:"dragonfangs",l:"Dragon Fangs",d:"Dragon Blow"}];
+const WPNS=[{id:"standard",l:"Any H2H",d:"All base WS"},{id:"godhands",l:"Godhands",d:"Aeonic — Radiance; Shijin Spiral gains Light"},{id:"varga",l:"Varga Purnikawa",d:"Prime — Maru Kala"},{id:"dragonfangs",l:"Dragon Fangs",d:"Dragon Blow"}];
 
 /* ══════════ STATE ══════════ */
 let S={frame:"Valoredge",steps:4,start:"Both",minLv:1,sort:"maxLv",search:"",showN:100,
-  weapon:"standard",maneuvers:[null,null,null],inhibitor:true,speedloader:true,
+  weapon:"standard",am:3,maneuvers:[null,null,null],inhibitor:true,speedloader:true,
   mExcl:{},aExcl:{},po:{mn:true,mws:false,aws:false},chainMode:"normal"};
 for(const n of Object.keys(MW)) S.mExcl[n]=(MW[n].w!==0);
 for(const f of Object.keys(AW)){S.aExcl[f]={};for(const n of Object.keys(AW[f]))S.aExcl[f][n]=false;}
@@ -153,7 +171,19 @@ let cache=null;
 
 /* ══════════ HELPERS ══════════ */
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
-function getMWS(){const r={};for(const[n,i]of Object.entries(MW)){if(S.mExcl[n])continue;if(i.w&&WGATES[i.w]!==S.weapon)continue;r[n]=i;}return r;}
+function getMWS(){
+  const r={};
+  for(const[n,i]of Object.entries(MW)){
+    if(S.mExcl[n])continue;
+    if(i.w&&WGATES[i.w]!==S.weapon)continue;
+    /* AEONIC: while Godhands Aftermath is active, Shijin Spiral gains an extra 3rd skillchain property: Light
+       (skills.lua: aeonic='Light', weapon='Godhand'; BG-wiki: applied during Aftermath's duration).
+       Order matches Skillchains.lua aeonic_prop: {p1, p2, aeonic}. */
+    if(n==="Shijin Spiral"&&S.weapon==="godhands"&&S.am>0){r[n]={...i,p:["Fusion","Reverberation","Light"]};continue;}
+    r[n]=i;
+  }
+  return r;
+}
 function getAWS(){const r={};for(const[n,i]of Object.entries(AW[S.frame])){if(S.aExcl[S.frame][n])continue;r[n]=i;}return r;}
 function cntMN(){const c={};for(const m of S.maneuvers)if(m)c[m]=(c[m]||0)+1;return c;}
 function hasMN(){return S.maneuvers.some(m=>m)}
@@ -169,35 +199,26 @@ function detAutoWS(frame,mnc){
   return cands[0][0];
 }
 
-/* Standard SC check (respects property priority) */
+/* Standard SC check — mirrors Skillchains.lua check_props: outer loop over resonating props,
+   inner loop over the new WS's props, first match wins. (The #old>3 break in the Lua only
+   applies to Chainbound resonance, which never occurs here.) */
 function trySC(op,cp){for(const o of op)for(const c of cp){const r=SC[o+"→"+c];if(r)return r;}return null;}
 
-/* Finds ANY SC this WS can make off the resonation */
-function anySC(op,cp,noL4){
-  for(const o of op)for(const c of cp){
-    const r=SC[o+"→"+c];
-    if(r&&!(r[1]===4&&noL4))return r;
-  }
-  return null;
-}
-
-/* Finds the BEST (highest-level) SC this WS can make off the resonation */
-function bestSC(op,cp,noL4){
-  let best=null;
-  for(const o of op)for(const c of cp){
-    const r=SC[o+"→"+c];
-    if(!r)continue;
-    if(r[1]===4&&noL4)continue;
-    if(!best||r[1]>best[1])best=r;
-  }
-  return best;
+/* Ultimate SC naming — per BG-wiki Aeonic Aftermath rules:
+   The Lv4 result is renamed Radiance/Umbra only when the MASTER closes with Godhands + Aeonic
+   Aftermath active, and the closer's position in the chain meets the AM threshold:
+   AM3 → closer is WS #2+, AM2 → WS #3+, AM1 → WS #4+. Otherwise it stays a Lv4 double Light/Darkness.
+   (Mirrors Skillchains.lua: Light={4,'Light','Radiance'} + aeonic_am(step) = 272-buff < step.) */
+function l4name(base,pos,src){
+  if(src==="M"&&S.weapon==="godhands"&&S.am>0&&pos>=(5-S.am))return base==="Light"?"Radiance":"Umbra";
+  return base;
 }
 
 /* Inhibitor only: highest-priority WS that can form ANY SC (level ignored) */
-function inhibOnlyPick(res,fw,names,noL4){
+function inhibOnlyPick(res,fw,names){
   let best=null;
   for(const n of names){
-    const sc=anySC(res,fw[n].p,noL4);
+    const sc=trySC(res,fw[n].p);
     if(!sc)continue;
     if(!best||fw[n].pr>fw[best.ws].pr){
       best={ws:n,sc:sc[0],lv:sc[1]};
@@ -212,10 +233,10 @@ function inhibOnlyPick(res,fw,names,noL4){
 const SCORDER=["Light","Darkness","Gravitation","Fragmentation","Distortion","Fusion","Compression","Liquefaction","Induration","Reverberation","Transfixion","Scission","Detonation","Impaction","Radiance","Umbra"];
 const SCIDX={};SCORDER.forEach((n,i)=>SCIDX[n]=i);
 
-function speedloaderPick(res,fw,names,noL4,frame){
+function speedloaderPick(res,fw,names){
   let best=null;
   for(const n of names){
-    const sc=anySC(res,fw[n].p,noL4);
+    const sc=trySC(res,fw[n].p);
     if(!sc)continue;
     const scIdx=SCIDX[sc[0]]!=null?SCIDX[sc[0]]:99;
     if(!best){best={ws:n,sc:sc[0],lv:sc[1],scIdx};continue;}
@@ -230,9 +251,9 @@ function speedloaderPick(res,fw,names,noL4,frame){
 }
 
 /* Master pick function: selects the right picker based on attachments */
-function autoPick(res,fw,names,noL4,frame){
-  if(S.speedloader) return speedloaderPick(res,fw,names,noL4,frame);
-  return inhibOnlyPick(res,fw,names,noL4);
+function autoPick(res,fw,names){
+  if(S.speedloader) return speedloaderPick(res,fw,names);
+  return inhibOnlyPick(res,fw,names);
 }
 
 /* ══════════ MANEUVER FEASIBILITY ══════════ */
@@ -242,7 +263,7 @@ function assessMN(autoUsed,frame){
   const hasAny=S.inhibitor||S.speedloader;
   if(hasAny){
     if(S.speedloader)
-      return{ok:true,label:"Speedloader (dynamic)",detail:"Auto picks highest SC level. Ties broken by maneuver dominance.",tier:0};
+      return{ok:true,label:"Speedloader (dynamic)",detail:"Auto picks highest SC level. Ties broken by SC result ordering, then priority.",tier:0};
     else
       return{ok:true,label:"Inhibitor (dynamic)",detail:"Auto picks highest-priority WS that can form any SC. SC level ignored.",tier:0};
   }
@@ -257,13 +278,15 @@ function assessMN(autoUsed,frame){
   return{ok:false,label:"Multi-WS",detail:"Multiple auto WS needed ("+unique.join(", ")+"). Requires Inhibitor or Speedloader.",tier:1};
 }
 
-/* ══════════ CHAIN ENGINE ══════════ */
+/* ══════════ CHAIN ENGINE ══════════
+   Lv4 results close the chain (Skillchains.lua: closed = step > 5 or level == 4),
+   so a state that hits Lv4 before reaching the requested length is discarded. */
 
 function computeMasterOnly(){
   const mws=getMWS();
   const mn=Object.keys(mws);
   if(!mn.length)return[];
-  const len=S.steps,noL4=(S.weapon!=="godhands");
+  const len=S.steps;
   const res=[];
   const init=[];
   for(const m of mn) init.push({ch:[{ws:m,src:"M",sc:null,lv:null}],rs:mws[m].p});
@@ -275,12 +298,13 @@ function computeMasterOnly(){
       for(const name of mn){
         const sc=trySC(s.rs,mws[name].p);
         if(!sc)continue;
-        if(sc[1]===4&&noL4)continue;
-        const nc=[...s.ch,{ws:name,src:"M",sc:sc[0],lv:sc[1]}];
+        const pos=s.ch.length+1;
+        const dispSC=sc[1]===4?l4name(sc[0],pos,"M"):sc[0];
+        const nc=[...s.ch,{ws:name,src:"M",sc:dispSC,lv:sc[1]}];
         if(nc.length===len){
           const mx=Math.max(...nc.filter(x=>x.lv).map(x=>x.lv));
           res.push({steps:nc,maxLv:mx,autoUsed:[],mn:{ok:true,label:"Master Only",detail:"All steps are Master WS — always feasible.",tier:0}});
-        } else {
+        } else if(sc[1]<4){
           nq.push({ch:nc,rs:[sc[0]]});
         }
       }
@@ -294,7 +318,7 @@ function computeAutoOnly(){
   const fw=getAWS();
   const an=Object.keys(fw);
   if(!an.length)return[];
-  const len=S.steps,noL4=(S.weapon!=="godhands");
+  const len=S.steps;
   const hmn=hasMN(),mnc=cntMN();
   const det=hmn?detAutoWS(S.frame,mnc):null;
   const hasAttach=S.inhibitor||S.speedloader;
@@ -311,15 +335,15 @@ function computeAutoOnly(){
       if(s.ch.length>=len)continue;
       let cands=[];
       if(hasAttach){
-        const pick=autoPick(s.rs,fw,an,noL4,S.frame);
+        const pick=autoPick(s.rs,fw,an);
         if(pick) cands=[[pick.ws,pick.sc,pick.lv]];
       } else if(hmn&&det&&fw[det]){
         const sc=trySC(s.rs,fw[det].p);
-        if(sc&&!(sc[1]===4&&noL4)) cands=[[det,sc[0],sc[1]]];
+        if(sc) cands=[[det,sc[0],sc[1]]];
       } else {
         const maxPr=Math.max(...an.map(n=>fw[n].pr));
         const defWS=an.find(n=>fw[n].pr===maxPr);
-        if(defWS){const sc=trySC(s.rs,fw[defWS].p);if(sc&&!(sc[1]===4&&noL4))cands=[[defWS,sc[0],sc[1]]];}
+        if(defWS){const sc=trySC(s.rs,fw[defWS].p);if(sc)cands=[[defWS,sc[0],sc[1]]];}
       }
       for(const[name,scN,scL] of cands){
         const nc=[...s.ch,{ws:name,src:"A",sc:scN,lv:scL}];
@@ -327,7 +351,7 @@ function computeAutoOnly(){
           const mx=Math.max(...nc.filter(x=>x.lv).map(x=>x.lv));
           const au=[...new Set(nc.map(x=>x.ws))];
           res.push({steps:nc,maxLv:mx,autoUsed:au,mn:assessMN(au,S.frame)});
-        } else {
+        } else if(scL<4){
           nq.push({ch:nc,rs:[scN]});
         }
       }
@@ -343,7 +367,7 @@ function compute(){
   const fw=getAWS(),mws=getMWS();
   const an=Object.keys(fw),mn=Object.keys(mws);
   if(!an.length||!mn.length)return[];
-  const len=S.steps,noL4=(S.weapon!=="godhands");
+  const len=S.steps;
   const hmn=hasMN(),mnc=cntMN(),det=hmn?detAutoWS(S.frame,mnc):null;
   const hasAttach=S.inhibitor||S.speedloader;
   const res=[];
@@ -372,7 +396,7 @@ function compute(){
         cands=mn.map(n=>[n,mws[n].p,"M",null,null]);
       } else {
         if(hasAttach){
-          const pick=autoPick(s.rs,fw,an,noL4,S.frame);
+          const pick=autoPick(s.rs,fw,an);
           if(pick) cands=[[pick.ws,fw[pick.ws].p,"A",pick.sc,pick.lv]];
         } else if(hmn&&det&&fw[det]){
           cands=[[det,fw[det].p,"A",null,null]];
@@ -386,14 +410,16 @@ function compute(){
         let scN,scL;
         if(forceSC){scN=forceSC;scL=forceLV;}
         else{const sc=trySC(s.rs,props);if(!sc)continue;[scN,scL]=sc;}
-        if(scL===4&&noL4)continue;
+        const baseSC=scN;
+        const pos=s.ch.length+1;
+        if(scL===4) scN=l4name(scN,pos,src);
         const nc=[...s.ch,{ws:name,src,sc:scN,lv:scL}];
         if(nc.length===len){
           const au=nc.filter(x=>x.src==="A").map(x=>x.ws);
           const mx=Math.max(...nc.filter(x=>x.lv).map(x=>x.lv));
           res.push({steps:nc,maxLv:mx,autoUsed:[...new Set(au)],mn:assessMN(au,S.frame)});
-        } else {
-          nq.push({ch:nc,rs:[scN],nx:src==="M"?"A":"M"});
+        } else if(scL<4){
+          nq.push({ch:nc,rs:[baseSC],nx:src==="M"?"A":"M"});
         }
       }
     }
@@ -416,7 +442,18 @@ function render(){
 
   h+='<div class="pnl md" style="padding:12px 20px"><div class="lbl">🗡️ EQUIPPED WEAPON</div><div class="rw" style="gap:6px">';
   for(const w of WPNS){const sel=S.weapon===w.id;h+='<div class="ch '+(sel?'mo':'mf')+'" style="'+(sel?'box-shadow:0 0 0 2px #fbbf24':'')+';" onclick="setW(\''+w.id+'\')">'+esc(w.l)+' <span class="s">'+esc(w.d)+'</span></div>';}
-  h+='</div></div>';
+  h+='</div>';
+  if(S.weapon==="godhands"){
+    h+='<div class="lbl" style="margin-top:10px">AEONIC AFTERMATH — enables Radiance/Umbra and grants Shijin Spiral an extra Light skillchain property</div><div class="rw" style="gap:3px">';
+    for(const[v,l] of [[0,"AM Off"],[1,"AM1"],[2,"AM2"],[3,"AM3"]]) h+='<button class="b'+(S.am===v?' on':'')+'" onclick="setAM('+v+')">'+l+'</button>';
+    h+='</div><div style="margin-top:4px;font-size:10px;color:#94a3b8">';
+    if(S.am===0)h+='No Aftermath: Shijin Spiral keeps only its normal Fusion/Reverberation properties. Light→Light still makes a Lv4 <b>double Light</b> — just not Radiance.';
+    else h+='AM'+S.am+' active: Radiance/Umbra when the closing Light/Darkness-prop Master WS is WS #'+(5-S.am)+' or later in the chain (AM3 = 2-step, AM2 = 3-step, AM1 = 4-step). Shijin Spiral gains an extra <b style="color:#fbbf24">Light</b> skillchain property (Fusion/Reverberation/Light). Below the step threshold the result is still a Lv4 double Light.';
+    h+='</div>';
+  } else {
+    h+='<div style="margin-top:6px;font-size:10px;color:#64748b">Lv4 double Light/Darkness (Light→Light, Darkness→Darkness) is available with <b>any weapon</b> — Godhands only upgrades it to Radiance/Umbra.</div>';
+  }
+  h+='</div>';
 
   if(S.chainMode!=="masterOnly"){
   h+='<div class="pnl dk" style="padding:10px 20px">';
@@ -490,14 +527,17 @@ function render(){
 
   if(S.chainMode!=="autoOnly"){
   h+='<div class="pnl md">';
+  const mws=getMWS();
   const mOn=Object.keys(MW).filter(n=>!S.mExcl[n]&&(!MW[n].w||WGATES[MW[n].w]===S.weapon)).length;
   h+='<div class="ph" onclick="tog(\'mws\')"><span style="font-size:10px;color:#64748b">'+(S.po.mws?'▼':'▶')+'</span><h3 style="color:#93c5fd">🥊 MASTER WS FILTER</h3><span class="cnt">'+mOn+' enabled</span></div>';
   h+='<div class="pb'+(S.po.mws?' open':'')+'"><div class="rw">';
   for(const[n,i]of Object.entries(MW)){
     const gated=i.w&&WGATES[i.w]!==S.weapon;const excl=S.mExcl[n];const on=!excl&&!gated;
     let cls=on?'mo':'mf';if(gated)cls+=' lk';
+    const eff=(mws[n]&&mws[n].p)||i.p;
     let ex='';if(i.w===1)ex=' <span style="color:#fbbf24;font-size:9px">⚠Varga</span>';if(i.w===2)ex=' <span style="color:#fbbf24;font-size:9px">⚠DragonFangs</span>';
-    h+='<div class="ch '+cls+'" onclick="'+(gated?'':'togMW(\''+esc(n)+'\')')+'">🥊 '+esc(n)+' <span class="s">'+esc(i.p.join('/'))+' ['+i.s+']</span>'+ex+(gated?' <span class="s" style="color:#f87171">[wrong wpn]</span>':'')+'</div>';
+    if(n==="Shijin Spiral"&&S.weapon==="godhands"&&S.am>0)ex+=' <span style="color:#fbbf24;font-size:9px">✦ +Light property (Aeonic AM)</span>';
+    h+='<div class="ch '+cls+'" onclick="'+(gated?'':'togMW(\''+esc(n)+'\')')+'">🥊 '+esc(n)+' <span class="s">'+esc(eff.join('/'))+' ['+i.s+']</span>'+ex+(gated?' <span class="s" style="color:#f87171">[wrong wpn]</span>':'')+'</div>';
   }
   h+='</div><div class="rw" style="margin-top:6px;gap:4px"><button class="b sm" onclick="allMW(0)">Enable all</button><button class="b sm" onclick="allMW(1)">Disable all</button></div></div></div>';
   }
@@ -523,7 +563,7 @@ function render(){
   h+=cg("Steps",[2,3,4,5,6].map(n=>bt("steps",n,n+"-step")).join(""));
   h+=cg("Mode",['<button class="b'+(S.chainMode==="normal"?' on':'')+'" onclick="setChainMode(\'normal\')">⚔ Normal</button>','<button class="b'+(S.chainMode==="masterOnly"?' on':'')+'" onclick="setChainMode(\'masterOnly\')" style="'+(S.chainMode==="masterOnly"?"background:#1e3a5f;color:#93c5fd;border-color:#3b82f6":"")+'" >🥊 Master Only</button>','<button class="b'+(S.chainMode==="autoOnly"?' on':'')+'" onclick="setChainMode(\'autoOnly\')" style="'+(S.chainMode==="autoOnly"?"background:#5c1a1a;color:#fca5a5;border-color:#dc2626":"")+'" >🤖 Auto Only</button>'].join(""));
   if(S.chainMode==="normal") h+=cg("Opener",["Both","Master","Auto"].map(s=>bt("start",s,s==="Master"?"🥊 Master":s==="Auto"?"🤖 Auto":"Both")).join(""));
-  h+=cg("Min SC",[1,2,3].map(n=>bt("minLv",n,"L"+n+"+")).join("")+(S.weapon==="godhands"?bt("minLv",4,"L4+"):""));
+  h+=cg("Min SC",[1,2,3,4].map(n=>bt("minLv",n,"L"+n+"+")).join(""));
   h+=cg("Sort",'<button class="b on">SC Level</button>');
   h+=cg("Search",'<input class="inp" value="'+esc(S.search)+'" placeholder="WS name..." oninput="setS(\'search\',this.value)">');
   h+='</div></div>';
@@ -544,15 +584,22 @@ function render(){
   h+='<div class="res">';
   const shown=f.slice(0,S.showN);
   if(!shown.length)h+='<div class="empty">No chains found. Try adjusting filters.</div>';
+  const mwsAll=getMWS();
   for(let i=0;i<shown.length;i++){
     const c=shown[i],lc=c.maxLv>=4?"l4":c.maxLv>=3?"l3":c.maxLv>=2?"l2":"l1";
     const tc=["#4ade80","#fbbf24","#f87171"][c.mn.tier]||"#888";
     let fl='';for(let j=0;j<c.steps.length;j++){const s=c.steps[j];if(j)fl+='<span style="color:#475569;font-size:11px;margin-top:4px;align-self:flex-start">→</span>';fl+='<div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:3px">'+wsT(s.ws,s.src)+(s.sc?scB(s.sc,s.lv):'')+'</div>';}
     let dt='<div style="margin-bottom:6px"><b style="color:#64748b">Setup: </b><span style="color:'+tc+'">'+esc(c.mn.detail)+'</span></div>';
-    if(c.maxLv>=4)dt+='<div style="margin-bottom:6px;color:#d97706;font-weight:700">⚠ L4 requires Godhands + Aeonic Aftermath on closing WS</div>';
+    if(c.maxLv>=4){
+      const last=c.steps[c.steps.length-1];
+      if(last.sc==="Radiance"||last.sc==="Umbra")
+        dt+='<div style="margin-bottom:6px;color:#fef08a;font-weight:700">✦ '+esc(last.sc)+' — Ultimate SC. Requires Godhands + Aeonic Aftermath (AM'+S.am+' active) on the Master when closing. Closes the chain; cannot be continued.</div>';
+      else
+        dt+='<div style="margin-bottom:6px;color:#d97706;font-weight:700">⚡ Lv4 double '+esc(last.sc)+' — works with ANY weapon, no aeonic required. Becomes '+(last.sc==="Light"?"Radiance":"Umbra")+' if closed by the Master with Godhands Aeonic Aftermath at sufficient step count. Closes the chain; cannot be continued.</div>';
+    }
     dt+='<div style="margin-bottom:6px"><b style="color:#64748b">Steps:</b><div class="sl">';
-    for(let j=0;j<c.steps.length;j++){const s=c.steps[j],isM=s.src==="M",wd=isM?MW[s.ws]:fw[s.ws];
-      const inf=isM?'Props: '+wd.p.join('/')+' | '+wd.s+(wd.w?' | Weapon-gated':''):'Props: '+wd.p.join('/')+' | '+wd.m+' | P'+wd.pr;
+    for(let j=0;j<c.steps.length;j++){const s=c.steps[j],isM=s.src==="M",wd=isM?(mwsAll[s.ws]||MW[s.ws]):fw[s.ws];
+      const inf=isM?'Props: '+wd.p.join('/')+' | '+(MW[s.ws]?MW[s.ws].s:'')+(MW[s.ws]&&MW[s.ws].w?' | Weapon-gated':''):'Props: '+wd.p.join('/')+' | '+wd.m+' | P'+wd.pr;
       dt+='<div class="si"><span style="color:#64748b">'+(j+1)+': </span><span style="color:'+(isM?'#93c5fd':'#fca5a5')+';font-weight:600">'+(isM?'[M]':'[A]')+' '+esc(s.ws)+'</span> <span style="color:#475569;font-size:11px">'+esc(inf)+'</span>';
       if(s.sc)dt+=' '+scB(s.sc,s.lv);dt+='</div>';}
     dt+='</div></div>';
@@ -570,6 +617,7 @@ function tog(p){S.po[p]=!S.po[p];render();}
 function togD(i){const e=document.getElementById("d"+i),a=document.getElementById("a"+i);e.classList.toggle("open");a.textContent=e.classList.contains("open")?"▲":"▼";}
 function setS(k,v){S[k]=v;if(["frame","steps","start","minLv","inhibitor","speedloader"].includes(k)){cache=null;S.showN=100;}render();}
 function setW(w){S.weapon=w;for(const[n,i]of Object.entries(MW))if(i.w)S.mExcl[n]=(WGATES[i.w]!==w);cache=null;S.showN=100;render();}
+function setAM(v){S.am=v;cache=null;S.showN=100;render();}
 function togInhib(){S.inhibitor=!S.inhibitor;cache=null;S.showN=100;render();}
 function togSpeed(){S.speedloader=!S.speedloader;cache=null;S.showN=100;render();}
 function addMN(el){for(let i=0;i<3;i++){if(!S.maneuvers[i]){S.maneuvers[i]=el;break;}}cache=null;S.showN=100;render();}
